@@ -1,0 +1,65 @@
+[
+  {
+    "course_id": "CIS225",
+    "subject": "CIS",
+    "course_number": "225",
+    "title": "Introduction to Information Systems",
+    "credit_hours": 3,
+    "prerequisites": [],
+    "corequisites": []
+  },
+  {
+    "course_id": "CIS236",
+    "subject": "CIS",
+    "course_number": "236",
+    "title": "Programming Fundamentals",
+    "credit_hours": 3,
+    "prerequisites": [],
+    "corequisites": []
+  },
+  {
+    "course_id": "CIS330",
+    "subject": "CIS",
+    "course_number": "330",
+    "title": "Network and Systems Fundamentals",
+    "credit_hours": 3,
+    "prerequisites": [
+      "CIS236"
+    ],
+    "corequisites": []
+  },
+  {
+    "course_id": "CIS376",
+    "subject": "CIS",
+    "course_number": "376",
+    "title": "Advanced Networking",
+    "credit_hours": 3,
+    "prerequisites": [
+      "CIS330"
+    ],
+    "corequisites": []
+  },
+  {
+    "course_id": "CIS410",
+    "subject": "CIS",
+    "course_number": "410",
+    "title": "Secure Systems",
+    "credit_hours": 3,
+    "prerequisites": [
+      "CIS330"
+    ],
+    "corequisites": []
+  },
+  {
+    "course_id": "CIS450",
+    "subject": "CIS",
+    "course_number": "450",
+    "title": "Cybersecurity Capstone",
+    "credit_hours": 3,
+    "prerequisites": [
+      "CIS376",
+      "CIS410"
+    ],
+    "corequisites": []
+  }
+]

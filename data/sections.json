@@ -1,0 +1,80 @@
+[
+  {
+    "section_id": "SEC1001",
+    "course_id": "CIS376",
+    "term_id": "2027SP",
+    "section_number": "01",
+    "modality": "in_person",
+    "capacity": 30,
+    "enrolled_count": 24,
+    "meetings": [
+      {
+        "days": ["MON", "WED"],
+        "start_time": "09:30",
+        "end_time": "10:45",
+        "location": "Building A 101"
+      }
+    ]
+  },
+  {
+    "section_id": "SEC1002",
+    "course_id": "CIS376",
+    "term_id": "2027SP",
+    "section_number": "02",
+    "modality": "in_person",
+    "capacity": 30,
+    "enrolled_count": 30,
+    "meetings": [
+      {
+        "days": ["TUE", "THU"],
+        "start_time": "11:00",
+        "end_time": "12:15",
+        "location": "Building A 102"
+      }
+    ]
+  },
+  {
+    "section_id": "SEC2001",
+    "course_id": "CIS410",
+    "term_id": "2027SP",
+    "section_number": "01",
+    "modality": "in_person",
+    "capacity": 25,
+    "enrolled_count": 20,
+    "meetings": [
+      {
+        "days": ["MON", "WED"],
+        "start_time": "10:30",
+        "end_time": "11:45",
+        "location": "Building B 201"
+      }
+    ]
+  },
+  {
+    "section_id": "SEC2002",
+    "course_id": "CIS410",
+    "term_id": "2027SP",
+    "section_number": "02",
+    "modality": "online",
+    "capacity": 40,
+    "enrolled_count": 18,
+    "meetings": []
+  },
+  {
+    "section_id": "SEC3001",
+    "course_id": "CIS450",
+    "term_id": "2027SP",
+    "section_number": "01",
+    "modality": "in_person",
+    "capacity": 20,
+    "enrolled_count": 15,
+    "meetings": [
+      {
+        "days": ["TUE", "THU"],
+        "start_time": "13:00",
+        "end_time": "14:15",
+        "location": "Building C 301"
+      }
+    ]
+  }
+]

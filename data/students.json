@@ -1,0 +1,23 @@
+[
+  {
+    "student_id": "S10001",
+    "display_name": "Alex Student",
+    "program": "Information Technology",
+    "max_credit_hours": 18,
+    "active": true
+  },
+  {
+    "student_id": "S10002",
+    "display_name": "Jordan Student",
+    "program": "Computer Science",
+    "max_credit_hours": 15,
+    "active": true
+  },
+  {
+    "student_id": "S10003",
+    "display_name": "Taylor Student",
+    "program": "Information Technology",
+    "max_credit_hours": 18,
+    "active": false
+  }
+]

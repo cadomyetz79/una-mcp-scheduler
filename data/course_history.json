@@ -1,0 +1,44 @@
+[
+  {
+    "student_id": "S10001",
+    "course_id": "CIS225",
+    "term_id": "2025FA",
+    "grade": "A",
+    "status": "completed"
+  },
+  {
+    "student_id": "S10001",
+    "course_id": "CIS236",
+    "term_id": "2026SP",
+    "grade": "B",
+    "status": "completed"
+  },
+  {
+    "student_id": "S10001",
+    "course_id": "CIS330",
+    "term_id": "2026FA",
+    "grade": "B",
+    "status": "completed"
+  },
+  {
+    "student_id": "S10002",
+    "course_id": "CIS225",
+    "term_id": "2025FA",
+    "grade": "A",
+    "status": "completed"
+  },
+  {
+    "student_id": "S10002",
+    "course_id": "CIS236",
+    "term_id": "2026SP",
+    "grade": "C",
+    "status": "completed"
+  },
+  {
+    "student_id": "S10003",
+    "course_id": "CIS236",
+    "term_id": "2026SP",
+    "grade": "F",
+    "status": "failed"
+  }
+]
