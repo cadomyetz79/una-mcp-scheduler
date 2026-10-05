@@ -1,0 +1,68 @@
+# Runs the ai-agent test suite on every push and pull request that touches
+# the agent code or the mock data, on Linux and Windows. The full pytest
+# output of each run is kept as a downloadable artifact (research evidence).
+
+name: ai-agent tests
+
+on:
+  push:
+    paths:
+      - "ai-agent/**"
+      - "data/**"
+      - ".github/workflows/ai-agent-tests.yml"
+  pull_request:
+    paths:
+      - "ai-agent/**"
+      - "data/**"
+      - ".github/workflows/ai-agent-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pytest (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13"]
+    defaults:
+      run:
+        shell: bash
+        working-directory: ai-agent
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ai-agent/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          {
+            echo "# Commit: $GITHUB_SHA"
+            echo "# Ref: $GITHUB_REF"
+            echo "# Runner: ${{ matrix.os }}"
+            python --version
+            pip show mcp | grep -E '^(Name|Version)'
+            echo
+            python -m pytest -v
+          } 2>&1 | tee pytest-output.txt
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-${{ matrix.os }}-py${{ matrix.python }}
+          path: ai-agent/pytest-output.txt

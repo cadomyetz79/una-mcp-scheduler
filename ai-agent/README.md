@@ -173,3 +173,14 @@ python -m pytest -v
   partial schedules (e.g. best 2 of 3 courses)?
 - Should preferences like "no Fridays" be hard filters (current behavior)
   or soft rankings?
+
+### 2026-10-05 — Continuous integration (GitHub Actions)
+
+**CONFIRMED**
+- Added `.github/workflows/ai-agent-tests.yml`: runs the ai-agent tests on
+  Ubuntu and Windows with Python 3.12 and 3.13 (4 jobs) on every push and
+  pull request that touches `ai-agent/`, `data/` or the workflow.
+- Each job uploads its full pytest output as an artifact
+  (`pytest-<os>-py<version>`), which replaces manual test screenshots as
+  evidence. The workflow's test step was dry-run locally (30 passed); the
+  first real Actions run is recorded on the pull request.
