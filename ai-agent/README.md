@@ -70,6 +70,9 @@ python -m pytest -v
   `docs/mock-data-model.md` and the JSON files in `data/`.
 - 21 pytest tests, all passing (Python 3.13.16, pytest 9.1.1):
   10 scenario tests on the team dataset + 11 edge-case unit tests.
+- Reproduced on Hassan's Windows laptop (win32, Python 3.12.10, pytest 9.1.1):
+  21 passed. Raw output in `docs/evidence/2026-10-05-ai-agent-pytest-windows.txt`;
+  cloud run in `docs/evidence/2026-10-05-ai-agent-pytest-cloud.txt`.
 - Verified on the team dataset:
   - S10001, SEC1001 + SEC2002 → valid, 6 credit hours
   - S10001, SEC1001 + SEC2001 → `TIME_CONFLICT` (MON/WED 09:30–10:45 vs 10:30–11:45)
