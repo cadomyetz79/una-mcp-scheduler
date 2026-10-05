@@ -1,6 +1,6 @@
 # AI Agent & Scheduling Logic (Workstream 3)
 
-Owner: Hassan Alnabres · Branch: `feature/ai-agent`
+Owner: Hassan Alnabres · Branches: `feature/ai-agent` (validator), `feature/ai-agent-mcp` (MCP client + planner)
 
 ## What is here
 
@@ -10,14 +10,59 @@ ai-agent/
 │   ├── models.py       # Student, Course, Section, Meeting, CourseRecord
 │   ├── validators.py   # deterministic academic-rule checks + validate_schedule()
 │   └── loader.py       # loads data/*.json into models (dev/testing only)
+├── agent/
+│   ├── banner_tools.py # typed MCP client wrapper; TOOL_NAMES maps to server tool names
+│   └── planner.py      # deterministic schedule generation over MCP data
+├── dev/
+│   ├── fake_mcp_server.py  # stand-in MCP server over data/*.json (until Workstream 2's is ready)
+│   └── demo_plan.py        # end-to-end demo over stdio
 ├── tests/
 │   ├── conftest.py
 │   ├── test_mock_dataset.py   # scenarios using the team's data/ files
-│   └── test_validators.py     # edge cases not in the dataset yet
+│   ├── test_validators.py     # edge cases not in the dataset yet
+│   └── test_mcp_planner.py    # agent <-> MCP tests, incl. one real stdio run
 └── requirements.txt
 ```
 
-Not built yet: `agent/` (MCP client + LLM loop) and `prompts/`.
+Not built yet: the LLM layer (turning a student's request into planner
+arguments and explaining the result) and `prompts/`.
+
+## Architecture so far
+
+```
+student request ──> [LLM layer: not built yet]
+                          │ student_id, term, courses, preferences
+                          ▼
+                    agent/planner.py ──── validate_schedule()  (deterministic)
+                          │
+                    agent/banner_tools.py
+                          │ MCP (stdio)
+                          ▼
+              dev/fake_mcp_server.py  →  later: Workstream 2's MCP server
+                          │
+                       data/*.json   →  later: Workstream 1's mock Banner API
+```
+
+Run the demo (from `ai-agent/`):
+
+```bash
+python dev/demo_plan.py S10001 2027SP CIS376 CIS410
+python dev/demo_plan.py S10001 2027SP CIS376 CIS410 --earliest 10:00
+```
+
+### Proposed MCP tool contract (for Workstream 2)
+
+WORKING ASSUMPTION — the fake server uses these; Workstream 2 owns the real names.
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `get_student_record` | `student_id` | student object (`data/students.json` shape); error if unknown |
+| `get_course_history` | `student_id` | list of `course_history.json` records |
+| `get_course` | `course_id` | course object; error if unknown |
+| `search_courses` | `query`, `subject` (both optional) | list of courses |
+| `get_course_sections` | `course_id`, `term_id` | list of `sections.json` records |
+
+Errors are returned as MCP tool errors (`is_error: true`), not crashes.
 
 ## Design rule
 
@@ -97,3 +142,45 @@ python -m pytest -v
 - Should `validate_schedule` be exposed as an MCP tool (Workstream 2), or
   stay inside the agent? It is pure Python with no I/O, so either works.
 - Which LLM / agent framework will the agent use?
+
+### 2026-10-05 — MCP client, fake MCP server, deterministic planner
+
+**CONFIRMED**
+- `dev/fake_mcp_server.py` serves `data/*.json` through 5 MCP tools, built
+  with the MCP Python SDK 2.2.0 (`MCPServer`, stdio transport).
+- `agent/banner_tools.py` reaches all academic data through MCP only and
+  logs every tool call (`BannerTools.calls`) for evidence.
+- `agent/planner.py` generates schedules deterministically: course-level
+  checks (prerequisites, already completed, offered this term, open seats,
+  preferences), then every section combination is checked with
+  `validate_schedule()`. Only accepted combinations are returned.
+- 30 pytest tests passing (21 previous + 9 new), including one that launches
+  the server as a subprocess and talks MCP over stdio. Raw output in
+  `docs/evidence/2026-10-05-ai-agent-mcp-pytest-cloud.txt`.
+- Demo `S10001 2027SP CIS376 CIS410 CIS450` over stdio returned one option,
+  SEC1001 + SEC2002 (6 credit hours); CIS450 excluded for
+  `MISSING_PREREQUISITE`; SEC1001 + SEC2001 rejected for `TIME_CONFLICT`;
+  8 MCP calls. Output in `docs/evidence/2026-10-05-ai-agent-mcp-demo.json`.
+
+**WORKING ASSUMPTION**
+- Tool names and shapes in the contract table above, until Workstream 2
+  confirms or changes them (change `TOOL_NAMES` only).
+- Planner requires all requested eligible courses together; it does not yet
+  suggest dropping one course when no combination fits.
+
+**OPEN QUESTION**
+- If no combination of all requested courses works, should the agent offer
+  partial schedules (e.g. best 2 of 3 courses)?
+- Should preferences like "no Fridays" be hard filters (current behavior)
+  or soft rankings?
+
+### 2026-10-05 — Continuous integration (GitHub Actions)
+
+**CONFIRMED**
+- Added `.github/workflows/ai-agent-tests.yml`: runs the ai-agent tests on
+  Ubuntu and Windows with Python 3.12 and 3.13 (4 jobs) on every push and
+  pull request that touches `ai-agent/`, `data/` or the workflow.
+- Each job uploads its full pytest output as an artifact
+  (`pytest-<os>-py<version>`), which replaces manual test screenshots as
+  evidence. The workflow's test step was dry-run locally (30 passed); the
+  first real Actions run is recorded on the pull request.
