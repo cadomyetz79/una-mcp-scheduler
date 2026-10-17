@@ -1,0 +1,118 @@
+{
+  "plan": {
+    "student_id": "S10001",
+    "term_id": "2027SP",
+    "requested": [
+      "CIS376",
+      "CIS410",
+      "CIS450"
+    ],
+    "options": [
+      {
+        "section_ids": [
+          "SEC1001",
+          "SEC2002"
+        ],
+        "total_credit_hours": 6,
+        "sections": [
+          {
+            "section_id": "SEC1001",
+            "course_id": "CIS376",
+            "modality": "in_person",
+            "seats_available": 6,
+            "meetings": [
+              {
+                "days": [
+                  "MON",
+                  "WED"
+                ],
+                "start": "09:30",
+                "end": "10:45",
+                "location": "Building A 101"
+              }
+            ]
+          },
+          {
+            "section_id": "SEC2002",
+            "course_id": "CIS410",
+            "modality": "online",
+            "seats_available": 22,
+            "meetings": []
+          }
+        ]
+      }
+    ],
+    "excluded": [
+      {
+        "course_id": "CIS450",
+        "code": "MISSING_PREREQUISITE",
+        "reason": "CIS450 requires CIS376, CIS410."
+      }
+    ],
+    "combinations_checked": 2,
+    "rejection_counts": {
+      "TIME_CONFLICT": 1
+    }
+  },
+  "mcp_calls": [
+    {
+      "tool": "get_student_record",
+      "arguments": {
+        "student_id": "S10001"
+      },
+      "is_error": false
+    },
+    {
+      "tool": "get_course_history",
+      "arguments": {
+        "student_id": "S10001"
+      },
+      "is_error": false
+    },
+    {
+      "tool": "get_course",
+      "arguments": {
+        "course_id": "CIS376"
+      },
+      "is_error": false
+    },
+    {
+      "tool": "get_course",
+      "arguments": {
+        "course_id": "CIS410"
+      },
+      "is_error": false
+    },
+    {
+      "tool": "get_course",
+      "arguments": {
+        "course_id": "CIS450"
+      },
+      "is_error": false
+    },
+    {
+      "tool": "get_course_sections",
+      "arguments": {
+        "course_id": "CIS376",
+        "term_id": "2027SP"
+      },
+      "is_error": false
+    },
+    {
+      "tool": "get_course_sections",
+      "arguments": {
+        "course_id": "CIS410",
+        "term_id": "2027SP"
+      },
+      "is_error": false
+    },
+    {
+      "tool": "get_course_sections",
+      "arguments": {
+        "course_id": "CIS450",
+        "term_id": "2027SP"
+      },
+      "is_error": false
+    }
+  ]
+}

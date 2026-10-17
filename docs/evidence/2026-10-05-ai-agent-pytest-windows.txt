@@ -1,0 +1,29 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\hassa\Documents\una-mcp-scheduler\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\hassa\Documents\una-mcp-scheduler\ai-agent
+collecting ... collected 21 items
+
+tests/test_mock_dataset.py::test_valid_schedule_in_person_plus_online PASSED [  4%]
+tests/test_mock_dataset.py::test_time_conflict_mon_wed PASSED            [  9%]
+tests/test_mock_dataset.py::test_full_section_rejected PASSED            [ 14%]
+tests/test_mock_dataset.py::test_capstone_missing_both_prerequisites PASSED [ 19%]
+tests/test_mock_dataset.py::test_prerequisite_missing_for_other_student PASSED [ 23%]
+tests/test_mock_dataset.py::test_failed_course_does_not_count PASSED     [ 28%]
+tests/test_mock_dataset.py::test_two_sections_of_same_course PASSED      [ 33%]
+tests/test_mock_dataset.py::test_unknown_section PASSED                  [ 38%]
+tests/test_mock_dataset.py::test_wrong_term PASSED                       [ 42%]
+tests/test_mock_dataset.py::test_result_is_json_friendly PASSED          [ 47%]
+tests/test_validators.py::test_back_to_back_is_not_a_conflict PASSED     [ 52%]
+tests/test_validators.py::test_same_time_different_days_is_not_a_conflict PASSED [ 57%]
+tests/test_validators.py::test_lab_meeting_conflict_is_detected PASSED   [ 61%]
+tests/test_validators.py::test_online_section_without_meetings_never_conflicts PASSED [ 66%]
+tests/test_validators.py::test_invalid_meeting_data_is_rejected PASSED   [ 71%]
+tests/test_validators.py::test_credit_limit_boundary PASSED              [ 76%]
+tests/test_validators.py::test_corequisite_satisfied_in_same_schedule PASSED [ 80%]
+tests/test_validators.py::test_corequisite_missing PASSED                [ 85%]
+tests/test_validators.py::test_corequisite_satisfied_by_completed_course PASSED [ 90%]
+tests/test_validators.py::test_retaking_completed_course_is_flagged PASSED [ 95%]
+tests/test_validators.py::test_empty_schedule_is_valid PASSED            [100%]
+
+============================= 21 passed in 0.08s ==============================
