@@ -1,6 +1,6 @@
 # AI Agent & Scheduling Logic (Workstream 3)
 
-Owner: Hassan Alnabres · Branches: `feature/ai-agent` (validator), `feature/ai-agent-mcp` (MCP client + planner)
+Owner: Hassan Alnabres · Branches: `feature/ai-agent` (validator), `feature/ai-agent-mcp` (MCP client + planner + CI), `feature/ai-agent-llm` (LLM assistant)
 
 ## What is here
 
@@ -12,26 +12,33 @@ ai-agent/
 │   └── loader.py       # loads data/*.json into models (dev/testing only)
 ├── agent/
 │   ├── banner_tools.py # typed MCP client wrapper; TOOL_NAMES maps to server tool names
-│   └── planner.py      # deterministic schedule generation over MCP data
+│   ├── planner.py      # deterministic schedule generation over MCP data
+│   ├── llm.py          # LLM backends: OllamaLLM (local, free) and ScriptedLLM (tests)
+│   └── assistant.py    # LLM tool-calling loop + guardrails
+├── prompts/
+│   └── system.md       # system prompt
 ├── dev/
 │   ├── fake_mcp_server.py  # stand-in MCP server over data/*.json (until Workstream 2's is ready)
-│   └── demo_plan.py        # end-to-end demo over stdio
+│   ├── demo_plan.py        # planner demo over stdio (no LLM)
+│   └── chat.py             # full assistant demo over stdio with Ollama
 ├── tests/
 │   ├── conftest.py
 │   ├── test_mock_dataset.py   # scenarios using the team's data/ files
 │   ├── test_validators.py     # edge cases not in the dataset yet
-│   └── test_mcp_planner.py    # agent <-> MCP tests, incl. one real stdio run
+│   ├── test_mcp_planner.py    # agent <-> MCP tests, incl. one real stdio run
+│   └── test_assistant.py      # LLM loop + guardrails with a scripted model
 └── requirements.txt
 ```
 
-Not built yet: the LLM layer (turning a student's request into planner
-arguments and explaining the result) and `prompts/`.
+Not built yet: Entra identity (student_id is currently passed in), and a
+live-model evaluation run.
 
 ## Architecture so far
 
 ```
-student request ──> [LLM layer: not built yet]
-                          │ student_id, term, courses, preferences
+student request ──> agent/assistant.py  (LLM: interprets + explains)
+                          │ tools: get_my_record, search_courses, plan_schedule
+                          │ guardrails: bound identity, arg checks, grounding, step limit
                           ▼
                     agent/planner.py ──── validate_schedule()  (deterministic)
                           │
@@ -48,6 +55,14 @@ Run the demo (from `ai-agent/`):
 ```bash
 python dev/demo_plan.py S10001 2027SP CIS376 CIS410
 python dev/demo_plan.py S10001 2027SP CIS376 CIS410 --earliest 10:00
+```
+
+Talk to the full assistant (needs [Ollama](https://ollama.com) running and
+`ollama pull qwen3:8b`):
+
+```bash
+python dev/chat.py "I want CIS376 and CIS410, no classes before 10am"
+python dev/chat.py --save ../docs/evidence/chat-run.json "Can I take the capstone?"
 ```
 
 ### Proposed MCP tool contract (for Workstream 2)
@@ -184,3 +199,37 @@ python -m pytest -v
   (`pytest-<os>-py<version>`), which replaces manual test screenshots as
   evidence. The workflow's test step was dry-run locally (30 passed); the
   first real Actions run is recorded on the pull request.
+
+### 2026-10-05 — LLM assistant with guardrails
+
+**CONFIRMED**
+- `agent/assistant.py`: tool-calling loop. The model gets three tools
+  (`get_my_record`, `search_courses`, `plan_schedule`); `plan_schedule` runs
+  the deterministic planner, so the model never decides validity.
+- Guardrails enforced in code: (1) student_id/term bound at creation, no tool
+  accepts an ID, undeclared arguments rejected; (2) argument validation
+  (course list, HH:MM times, day names) before anything reaches MCP;
+  (3) grounding check — section IDs in the final answer must come from a
+  `plan_schedule` option, one forced revision, then flagged
+  `grounded=False`; (4) step limit.
+- `agent/llm.py`: `OllamaLLM` (local open-source model over Ollama's
+  `/api/chat`, default `qwen3:8b`, temperature 0) and `ScriptedLLM`.
+- 41 tests passing, 1 skipped (live Ollama test, opt-in with
+  `RUN_OLLAMA_TESTS=1`). The 11 new tests script the model's behavior,
+  including trying another student's ID, malformed arguments, an unknown
+  tool, an invented section ID, and an endless tool loop; each is caught by
+  code. Output: `docs/evidence/2026-10-05-ai-agent-llm-pytest-cloud.txt`.
+
+**WORKING ASSUMPTION**
+- Ollama + `qwen3:8b` as the default model (free, runs locally). Any
+  tool-calling model can replace it behind the same `chat()` interface.
+- Section IDs match `SEC<digits>` for the grounding check.
+
+**OPEN QUESTION**
+- No real model has been run yet: Ollama could not be installed in the
+  cloud test environment. First live runs should happen on a lab machine.
+- Which model(s) to evaluate, and on what set of student requests? A fixed
+  request set run through `dev/chat.py --save` would give comparable
+  evidence (tool use, grounding rate, latency) for the paper.
+- Does the team want Ollama (local, free) or a hosted API for the final
+  system?
