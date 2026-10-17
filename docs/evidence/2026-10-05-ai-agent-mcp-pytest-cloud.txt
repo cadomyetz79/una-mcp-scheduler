@@ -1,0 +1,45 @@
+# Evidence: ai-agent tests incl. MCP client/planner
+# Date: 2026-10-05 17:27 CDT
+# Environment: Claude cloud workspace (Linux), Python 3.13.16, pytest 9.1.1, mcp 2.2.0
+# Branch: feature/ai-agent-mcp
+# Command: cd ai-agent && python -m pytest -v
+
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python3
+rootdir: /home/claude/cadomyetz79/una-mcp-scheduler/ai-agent
+plugins: anyio-4.15.1, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 30 items
+
+tests/test_mcp_planner.py::test_server_exposes_expected_tools PASSED     [  3%]
+tests/test_mcp_planner.py::test_student_is_loaded_through_mcp PASSED     [  6%]
+tests/test_mcp_planner.py::test_unknown_student_is_an_error_not_a_crash PASSED [ 10%]
+tests/test_mcp_planner.py::test_plan_finds_only_conflict_free_open_option PASSED [ 13%]
+tests/test_mcp_planner.py::test_plan_excludes_course_with_missing_prerequisites PASSED [ 16%]
+tests/test_mcp_planner.py::test_plan_respects_earliest_start_preference PASSED [ 20%]
+tests/test_mcp_planner.py::test_plan_reports_unknown_and_unoffered_courses PASSED [ 23%]
+tests/test_mcp_planner.py::test_every_option_passes_the_validator PASSED [ 26%]
+tests/test_mcp_planner.py::test_stdio_end_to_end PASSED                  [ 30%]
+tests/test_mock_dataset.py::test_valid_schedule_in_person_plus_online PASSED [ 33%]
+tests/test_mock_dataset.py::test_time_conflict_mon_wed PASSED            [ 36%]
+tests/test_mock_dataset.py::test_full_section_rejected PASSED            [ 40%]
+tests/test_mock_dataset.py::test_capstone_missing_both_prerequisites PASSED [ 43%]
+tests/test_mock_dataset.py::test_prerequisite_missing_for_other_student PASSED [ 46%]
+tests/test_mock_dataset.py::test_failed_course_does_not_count PASSED     [ 50%]
+tests/test_mock_dataset.py::test_two_sections_of_same_course PASSED      [ 53%]
+tests/test_mock_dataset.py::test_unknown_section PASSED                  [ 56%]
+tests/test_mock_dataset.py::test_wrong_term PASSED                       [ 60%]
+tests/test_mock_dataset.py::test_result_is_json_friendly PASSED          [ 63%]
+tests/test_validators.py::test_back_to_back_is_not_a_conflict PASSED     [ 66%]
+tests/test_validators.py::test_same_time_different_days_is_not_a_conflict PASSED [ 70%]
+tests/test_validators.py::test_lab_meeting_conflict_is_detected PASSED   [ 73%]
+tests/test_validators.py::test_online_section_without_meetings_never_conflicts PASSED [ 76%]
+tests/test_validators.py::test_invalid_meeting_data_is_rejected PASSED   [ 80%]
+tests/test_validators.py::test_credit_limit_boundary PASSED              [ 83%]
+tests/test_validators.py::test_corequisite_satisfied_in_same_schedule PASSED [ 86%]
+tests/test_validators.py::test_corequisite_missing PASSED                [ 90%]
+tests/test_validators.py::test_corequisite_satisfied_by_completed_course PASSED [ 93%]
+tests/test_validators.py::test_retaking_completed_course_is_flagged PASSED [ 96%]
+tests/test_validators.py::test_empty_schedule_is_valid PASSED            [100%]
+
+============================== 30 passed in 1.54s ==============================

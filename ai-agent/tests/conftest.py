@@ -13,3 +13,9 @@ from scheduling.loader import load_dataset  # noqa: E402
 @pytest.fixture(scope="session")
 def ds():
     return load_dataset()
+
+
+@pytest.fixture
+def anyio_backend():
+    # Async tests run on asyncio (the anyio pytest plugin ships with mcp).
+    return "asyncio"

@@ -1,0 +1,59 @@
+# Evidence: ai-agent tests incl. LLM assistant + guardrails (scripted model)
+# Date: 2026-10-05 17:52 CDT
+# Environment: Claude cloud workspace (Linux), Python 3.13.16, pytest 9.1.1, mcp 2.2.0
+# Branch: feature/ai-agent-llm (based on feature/ai-agent-mcp @ 7b1f08a)
+# Command: cd ai-agent && python -m pytest -v -rs
+
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python3
+rootdir: /tmp/claude-0/-home-claude/c9cfbbf9-5e39-521e-849d-dc159b467d2c/scratchpad/work/ai-agent
+plugins: anyio-4.15.1, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 42 items
+
+tests/test_assistant.py::test_model_plans_and_answers_from_planner_output PASSED [  2%]
+tests/test_assistant.py::test_preferences_are_passed_to_planner PASSED   [  4%]
+tests/test_assistant.py::test_search_then_plan PASSED                    [  7%]
+tests/test_assistant.py::test_get_my_record_has_no_name_and_no_id_input PASSED [  9%]
+tests/test_assistant.py::test_model_cannot_request_another_students_records PASSED [ 11%]
+tests/test_assistant.py::test_invalid_arguments_return_errors_to_the_model PASSED [ 14%]
+tests/test_assistant.py::test_hallucinated_section_triggers_one_revision PASSED [ 16%]
+tests/test_assistant.py::test_persistent_hallucination_is_flagged PASSED [ 19%]
+tests/test_assistant.py::test_answer_without_any_plan_cannot_cite_sections PASSED [ 21%]
+tests/test_assistant.py::test_step_limit_stops_runaway_loops PASSED      [ 23%]
+tests/test_assistant.py::test_ollama_response_is_normalized PASSED       [ 26%]
+tests/test_assistant.py::test_live_ollama_end_to_end SKIPPED (set RU...) [ 28%]
+tests/test_mcp_planner.py::test_server_exposes_expected_tools PASSED     [ 30%]
+tests/test_mcp_planner.py::test_student_is_loaded_through_mcp PASSED     [ 33%]
+tests/test_mcp_planner.py::test_unknown_student_is_an_error_not_a_crash PASSED [ 35%]
+tests/test_mcp_planner.py::test_plan_finds_only_conflict_free_open_option PASSED [ 38%]
+tests/test_mcp_planner.py::test_plan_excludes_course_with_missing_prerequisites PASSED [ 40%]
+tests/test_mcp_planner.py::test_plan_respects_earliest_start_preference PASSED [ 42%]
+tests/test_mcp_planner.py::test_plan_reports_unknown_and_unoffered_courses PASSED [ 45%]
+tests/test_mcp_planner.py::test_every_option_passes_the_validator PASSED [ 47%]
+tests/test_mcp_planner.py::test_stdio_end_to_end PASSED                  [ 50%]
+tests/test_mock_dataset.py::test_valid_schedule_in_person_plus_online PASSED [ 52%]
+tests/test_mock_dataset.py::test_time_conflict_mon_wed PASSED            [ 54%]
+tests/test_mock_dataset.py::test_full_section_rejected PASSED            [ 57%]
+tests/test_mock_dataset.py::test_capstone_missing_both_prerequisites PASSED [ 59%]
+tests/test_mock_dataset.py::test_prerequisite_missing_for_other_student PASSED [ 61%]
+tests/test_mock_dataset.py::test_failed_course_does_not_count PASSED     [ 64%]
+tests/test_mock_dataset.py::test_two_sections_of_same_course PASSED      [ 66%]
+tests/test_mock_dataset.py::test_unknown_section PASSED                  [ 69%]
+tests/test_mock_dataset.py::test_wrong_term PASSED                       [ 71%]
+tests/test_mock_dataset.py::test_result_is_json_friendly PASSED          [ 73%]
+tests/test_validators.py::test_back_to_back_is_not_a_conflict PASSED     [ 76%]
+tests/test_validators.py::test_same_time_different_days_is_not_a_conflict PASSED [ 78%]
+tests/test_validators.py::test_lab_meeting_conflict_is_detected PASSED   [ 80%]
+tests/test_validators.py::test_online_section_without_meetings_never_conflicts PASSED [ 83%]
+tests/test_validators.py::test_invalid_meeting_data_is_rejected PASSED   [ 85%]
+tests/test_validators.py::test_credit_limit_boundary PASSED              [ 88%]
+tests/test_validators.py::test_corequisite_satisfied_in_same_schedule PASSED [ 90%]
+tests/test_validators.py::test_corequisite_missing PASSED                [ 92%]
+tests/test_validators.py::test_corequisite_satisfied_by_completed_course PASSED [ 95%]
+tests/test_validators.py::test_retaking_completed_course_is_flagged PASSED [ 97%]
+tests/test_validators.py::test_empty_schedule_is_valid PASSED            [100%]
+
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_assistant.py:181: set RUN_OLLAMA_TESTS=1 with Ollama running
+======================== 41 passed, 1 skipped in 1.57s =========================
