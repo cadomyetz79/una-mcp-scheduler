@@ -112,6 +112,21 @@ def score_case(case: dict, record: dict) -> dict:
           f"stopped_reason={result.get('stopped_reason')}")
 
     extra["invalid_tool_calls"] = sum(1 for t in trace if not t["ok"])
+    # Evidence orchestration (absent in runs made before it existed).
+    extra["recoveries"] = [r["type"] for r in result.get("recoveries", [])]
+    extra["system_tool_calls"] = sum(1 for t in trace if t.get("by") == "system")
+    extra["runtime_unsupported_claims"] = len(result.get("unsupported_claims", []))
+    extra["rejected_section_mentions"] = result.get("rejected_section_mentions", [])
+    # Same claim rule applied offline to the final answer, so runs made before
+    # the runtime check existed can be compared on equal terms.
+    from agent.evidence import unsupported_claims
+    extra["audit_unsupported_claims"] = unsupported_claims(result.get("answer") or "", trace)
+    # Did the MODEL itself make the right plan call (ignoring system-run calls)?
+    if "plan_course_ids" in expect:
+        model_plans = [t for t in trace if t["tool"] == "plan_schedule" and t["ok"] and t.get("by", "model") == "model"]
+        got = sorted(str(c).strip().upper() for c in (model_plans[-1]["arguments"].get("course_ids", [])
+                                                         if model_plans else []))
+        extra["model_plan_correct"] = bool(model_plans) and got == sorted(expect["plan_course_ids"])
     return {"id": case["id"], "pass": all(c["pass"] for c in checks.values()), "checks": checks,
             "extra": extra}
 
@@ -177,6 +192,9 @@ def summarize(cases: list[dict], scores: list[dict], records: list[dict], ds=Non
             if v:
                 violations[s["id"]] = v
     per_case_latency = {s["id"]: rec_by_id[s["id"]].get("wall_s") for s in scores}
+    ex = [s.get("extra", {}) for s in scores]
+    recov = [k for e in ex for k in e.get("recoveries", [])]
+    plan_cases = [e for e in ex if "model_plan_correct" in e]
 
     return {
         "cases": rate([s["pass"] for s in scores]),
@@ -189,6 +207,21 @@ def summarize(cases: list[dict], scores: list[dict], records: list[dict], ds=Non
         "tool_call_correctness": rate(tool_correct),
         "grounded": rate([s["checks"]["grounded"]["pass"] for s in scores if "grounded" in s["checks"]]),
         "invalid_tool_calls": sum(s.get("extra", {}).get("invalid_tool_calls", 0) for s in scores),
+        "model_plan_correct": rate([e["model_plan_correct"] for e in plan_cases]),
+        "recoveries": {
+            "nudges": recov.count("nudge"),
+            "system_plan_schedule": recov.count("system_plan_schedule"),
+            "not_run": recov.count("not_run"),
+            "cases_with_recovery": [s["id"] for s in scores if s.get("extra", {}).get("recoveries")],
+        },
+        "system_tool_calls": sum(e.get("system_tool_calls", 0) for e in ex),
+        "unsupported_claims": {
+            "runtime_flagged_in_final_answers": sum(e.get("runtime_unsupported_claims", 0) for e in ex),
+            "audit_in_final_answers": sum(len(e.get("audit_unsupported_claims", [])) for e in ex),
+            "audit_cases": [s["id"] for s in scores if s.get("extra", {}).get("audit_unsupported_claims")],
+        },
+        "rejected_section_mentions": {s["id"]: s["extra"]["rejected_section_mentions"] for s in scores
+                                      if s.get("extra", {}).get("rejected_section_mentions")},
         "hard_constraint_violations": {"checked": ds is not None, "count": sum(map(len, violations.values())),
                                        "cases": violations},
         "latency_per_case_s": per_case_latency,

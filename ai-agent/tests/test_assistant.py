@@ -21,10 +21,13 @@ pytestmark = pytest.mark.anyio
 TERM = "2027SP"
 
 
-async def run(responses, request="Plan CIS376 and CIS410", student="S10001", max_steps=8):
+async def run(responses, request="Plan CIS376 and CIS410", student="S10001", max_steps=8, evidence=True):
+    """evidence=False isolates the other guardrails from the evidence check
+    (agent/evidence.py), which is tested in tests/test_evidence.py."""
     llm = ScriptedLLM(responses)
     async with Client(server) as client:
-        assistant = SchedulingAssistant(BannerTools(client), llm, student, TERM, max_steps)
+        assistant = SchedulingAssistant(BannerTools(client), llm, student, TERM, max_steps,
+                                        check_evidence=evidence)
         result = await assistant.run(request)
     return result, llm
 
@@ -81,7 +84,7 @@ async def test_bad_required_preferences_are_rejected():
     result, _ = await run([
         {"tool_calls": [call("plan_schedule", course_ids=["CIS376"], required_preferences=["everything"])]},
         {"content": "Sorry, I could not plan that."},
-    ])
+    ], evidence=False)
     assert not result.trace[0].ok and result.mcp_calls == []
 
 
@@ -99,7 +102,7 @@ async def test_get_my_record_has_no_name_and_no_id_input():
     result, _ = await run([
         {"tool_calls": [call("get_my_record")]},
         {"content": "You have completed CIS225, CIS236 and CIS330."},
-    ])
+    ], request="What courses have I completed?")
     record = result.trace[0].result
     assert record["completed_courses"] == ["CIS225", "CIS236", "CIS330"]
     assert "display_name" not in record  # data minimization
@@ -129,7 +132,7 @@ async def test_invalid_arguments_return_errors_to_the_model():
             call("drop_all_classes"),
         ]},
         {"content": "Sorry, could you tell me which courses you want?"},
-    ])
+    ], evidence=False)
     assert [t.ok for t in result.trace] == [False] * 5
     errors = [r["error"] for r in tool_results(llm, 1)]
     assert "HH:MM" in errors[0] and "non-empty" in errors[1]
@@ -161,7 +164,7 @@ async def test_answer_without_any_plan_cannot_cite_sections():
     result, _ = await run([
         {"tool_calls": [], "content": "SEC1001 works."},
         {"content": "Let me check first."},
-    ])
+    ], evidence=False)
     assert result.grounded and result.model_calls == 2
 
 
@@ -230,6 +233,6 @@ async def test_identity_arguments_still_get_the_privacy_message():
     result, llm = await run([
         {"tool_calls": [call("get_my_record", student_id="S10002")]},
         {"content": "I can only access your own record."},
-    ])
+    ], evidence=False)
     assert "signed-in student" in tool_results(llm, 1)[0]["error"]
     assert result.mcp_calls == []

@@ -99,7 +99,7 @@ def test_hard_constraint_check_catches_an_invalid_option(ds):
 async def test_scorer_flags_ungrounded_answer_and_missing_tool():
     case = copy.deepcopy(BY_ID["E01"])
     case["oracle"] = [{"content": "Take SEC1001 and SEC2001."}, {"content": "Take SEC2001."}]
-    record = await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server)
+    record = await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server, check_evidence=False)
     checks = score_case(BY_ID["E01"], record)["checks"]
     assert not checks["grounded"]["pass"]
     assert not checks["tool_use"]["pass"]

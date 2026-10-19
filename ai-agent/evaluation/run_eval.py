@@ -51,14 +51,15 @@ def load_cases(ids: list[str] | None = None) -> dict:
 
 
 async def run_case(case: dict, term_id: str, llm, server_params,
-                   check_preference_language: bool = True) -> dict:
+                   check_preference_language: bool = True, check_evidence: bool = True) -> dict:
     record = {"case_id": case["id"], "request": case["request"], "student_id": case["student_id"],
               "term_id": term_id}
     started = time.perf_counter()
     try:
         async with Client(server_params) as client:
             assistant = SchedulingAssistant(BannerTools(client), llm, case["student_id"], term_id,
-                                            check_preference_language=check_preference_language)
+                                            check_preference_language=check_preference_language,
+                                            check_evidence=check_evidence)
             result = await assistant.run(case["request"])
         record["result"] = result.to_dict()
     except (LLMError, Exception) as e:  # keep going: a failed case is evidence too
@@ -78,7 +79,7 @@ def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], re
         f"- Mode: {meta['mode']}; model: {meta.get('model')}; think: {meta.get('think')}; "
         f"num_ctx: {meta.get('num_ctx')}",
         f"- Machine: {meta['machine']}",
-        f"- Preference check: {meta.get('preference_check')}",
+        f"- Preference check: {meta.get('preference_check')}; evidence check: {meta.get('evidence_check')}",
         f"- Cases passed: {summary['cases']['passed']}/{summary['cases']['total']}"
         f" (missing: {', '.join(summary.get('cases_missing', [])) or 'none'})",
         f"- Preference classification: model {summary['preference_classification']['model_raw']['passed']}/"
@@ -89,6 +90,13 @@ def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], re
         f"{summary['tool_call_correctness']['total']}; invalid tool calls: {summary['invalid_tool_calls']}",
         f"- Grounded answers: {summary['grounded']['passed']}/{summary['grounded']['total']}",
         f"- Hard-constraint violations in returned options: {summary['hard_constraint_violations']['count']}",
+        f"- Model made the right plan call itself: {summary['model_plan_correct']['passed']}/"
+        f"{summary['model_plan_correct']['total']}",
+        f"- Evidence recoveries: {summary['recoveries']['nudges']} nudges, "
+        f"{summary['recoveries']['system_plan_schedule']} system-run plans, "
+        f"{summary['recoveries']['not_run']} not run; cases: {summary['recoveries']['cases_with_recovery'] or 'none'}",
+        f"- Unsupported availability/eligibility claims in final answers (audit): "
+        f"{summary['unsupported_claims']['audit_in_final_answers']} {summary['unsupported_claims']['audit_cases']}",
         f"- Latency (s): median {summary['latency_s']['median']}, mean {summary['latency_s']['mean']}, "
         f"max {summary['latency_s']['max']}",
         "",
@@ -115,6 +123,8 @@ async def main() -> None:
     p.add_argument("--oracle", action="store_true", help="replay each case's ideal responses, no model")
     p.add_argument("--no-preference-check", action="store_true",
                    help="ablation: let the model's required_preferences stand unchecked")
+    p.add_argument("--no-evidence-check", action="store_true",
+                   help="ablation: no evidence orchestration / claim check (agent/evidence.py)")
     p.add_argument("--resume", action="store_true",
                    help="keep finished cases already in --out and run only the missing ones")
     p.add_argument("--summarize-only", action="store_true",
@@ -132,6 +142,7 @@ async def main() -> None:
         "think": None if a.oracle else (not a.no_think),
         "num_ctx": a.num_ctx,
         "preference_check": not a.no_preference_check,
+        "evidence_check": not a.no_evidence_check,
         "cases_version": data["version"],
         "machine": f"{platform.system()} {platform.machine()} python {platform.python_version()}",
     }
@@ -157,7 +168,8 @@ async def main() -> None:
             continue
         llm = ScriptedLLM(case["oracle"]) if a.oracle else live_llm
         record = await run_case(case, data["term_id"], llm, params,
-                                check_preference_language=not a.no_preference_check)
+                                check_preference_language=not a.no_preference_check,
+                                check_evidence=not a.no_evidence_check)
         score = score_case(case, record)
         records.append(record)
         scores.append(score)
