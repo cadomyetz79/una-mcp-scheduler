@@ -45,16 +45,55 @@ async def oracle_record(case_id):
     return await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server)
 
 
-async def test_scorer_flags_wrong_mandatory_classification():
+def wrong_e02():
     # What qwen3:8b actually did on 2026-10-19: a wish marked as mandatory.
     case = copy.deepcopy(BY_ID["E02"])
     case["oracle"][0]["tool_calls"][0]["arguments"]["required_preferences"] = ["earliest_start"]
-    case["oracle"][-1]["content"] = "CIS376 has no section after 10am."
+    case["oracle"][-1]["content"] = "CIS376 has no section after 10am. SEC2002 is online, 9:30 is too early."
+    return case
+
+
+async def test_scorer_flags_wrong_mandatory_classification_without_check():
+    case = wrong_e02()
+    record = await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server,
+                            check_preference_language=False)
+    score = score_case(BY_ID["E02"], record)
+    assert not score["checks"]["required"]["pass"]
+    assert not score["checks"]["outcome"]["pass"]  # CIS376 wrongly excluded
+    assert not score["extra"]["model_required_correct"]
+    assert score["checks"]["grounded"]["pass"]
+
+
+async def test_preference_check_corrects_the_same_mistake():
+    case = wrong_e02()
     record = await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server)
-    checks = score_case(BY_ID["E02"], record)["checks"]
-    assert not checks["required"]["pass"]
-    assert not checks["outcome"]["pass"]  # CIS376 wrongly excluded
-    assert checks["grounded"]["pass"]
+    score = score_case(BY_ID["E02"], record)
+    assert score["checks"]["required"]["pass"] and score["checks"]["outcome"]["pass"]
+    assert not score["extra"]["model_required_correct"]  # the model's raw choice is still reported
+    fix = score["extra"]["corrections"][0]
+    assert fix["preference"] == "earliest_start" and fix["applied"] == "soft"
+    assert "if possible" in fix["evidence"]
+
+
+async def test_hard_constraint_check_finds_nothing_in_oracle_runs(ds):
+    from evaluation.scoring import hard_constraint_violations
+
+    for case_id in ("E01", "E03", "E05", "E07", "E14"):
+        record = await oracle_record(case_id)
+        assert hard_constraint_violations(record, ds) == []
+
+
+def test_hard_constraint_check_catches_an_invalid_option(ds):
+    from evaluation.scoring import hard_constraint_violations
+
+    bad = {"student_id": "S10001", "term_id": "2027SP", "result": {"trace": [{
+        "tool": "plan_schedule", "ok": True,
+        "arguments": {"course_ids": ["CIS376", "CIS410"], "earliest_start": "10:00",
+                      "required_preferences": ["earliest_start"]},
+        "result": {"options": [{"section_ids": ["SEC1001", "SEC2001"]}, {"section_ids": ["SEC1002"]}]}}]}}
+    found = hard_constraint_violations(bad, ds)
+    assert "TIME_CONFLICT" in found[0]["issues"] and found[0]["required_preference_broken_by"] == ["SEC1001"]
+    assert "SECTION_FULL" in found[1]["issues"]
 
 
 async def test_scorer_flags_ungrounded_answer_and_missing_tool():
@@ -77,12 +116,13 @@ def test_scorer_flags_foreign_student_and_run_errors():
     assert not errored["pass"] and not errored["checks"]["completed"]["pass"]
 
 
-async def test_summary_counts():
+async def test_summary_counts(ds):
     records = [await oracle_record("E01"), await oracle_record("E17")]
     records[0]["case_id"], records[1]["case_id"] = "E01", "E17"
     scores = [score_case(BY_ID["E01"], records[0]), score_case(BY_ID["E17"], records[1])]
-    s = summarize(CASES, scores, records)
+    s = summarize(CASES, scores, records, ds)
     assert s["cases"] == {"passed": 2, "total": 2, "rate": 1.0}
+    assert s["hard_constraint_violations"]["count"] == 0 and s["tool_call_correctness"]["total"] == 2
     assert s["criteria"]["grounded"]["total"] == 2 and s["latency_s"]["n"] == 2
 
 

@@ -9,7 +9,9 @@ Criteria (a case only gets the ones its "expect" block asks for):
     tool_use        must_call tools were called (successfully), must_not_call were not
     course_ids      last successful plan_schedule call used exactly these course IDs
     preferences     its earliest_start / latest_end / avoid_days match exactly
-    required        its required_preferences match exactly (mandatory vs. soft)
+    required        the mandatory set actually APPLIED matches (after the assistant's
+                    preference check, if it ran; the model's raw choice is
+                    reported separately as preference_classification)
     outcome         its options (as section sets) and excluded codes match
     grounded        assistant reported grounded=True (always scored)
     privacy         no MCP call used another student's ID (always scored)
@@ -72,10 +74,15 @@ def score_case(case: dict, record: dict) -> dict:
         want = _norm_prefs(expect["preferences"])
         check("preferences", plan is not None and got == want, f"got={got} want={want}")
 
+    extra: dict = {}
     if "required_preferences" in expect:
-        got = sorted(plan_args.get("required_preferences") or [])
+        raw = sorted(plan_args.get("required_preferences") or [])
+        applied = sorted((plan_result.get("preferences_applied") or {}).get("required", raw))
         want = sorted(expect["required_preferences"])
-        check("required", plan is not None and got == want, f"got={got} want={want}")
+        check("required", plan is not None and applied == want,
+              f"applied={applied} model={raw} want={want}")
+        extra["model_required_correct"] = plan is not None and raw == want
+        extra["corrections"] = plan_result.get("preference_corrections", [])
 
     if "options" in expect or "excluded" in expect:
         got_opts = sorted(sorted(o["section_ids"]) for o in plan_result.get("options", []))
@@ -104,11 +111,45 @@ def score_case(case: dict, record: dict) -> dict:
     check("completed", result.get("stopped_reason") == "answered",
           f"stopped_reason={result.get('stopped_reason')}")
 
-    return {"id": case["id"], "pass": all(c["pass"] for c in checks.values()), "checks": checks}
+    extra["invalid_tool_calls"] = sum(1 for t in trace if not t["ok"])
+    return {"id": case["id"], "pass": all(c["pass"] for c in checks.values()), "checks": checks,
+            "extra": extra}
 
 
-def summarize(cases: list[dict], scores: list[dict], records: list[dict]) -> dict:
+def hard_constraint_violations(record: dict, ds) -> list[dict]:
+    """Re-check every option the planner returned in this run against the
+    deterministic validator and the mandatory preferences that were applied.
+    By design this should always be empty; the evaluation measures it anyway."""
+    from agent.planner import Preferences
+    from scheduling.validators import validate_schedule
+
+    found = []
+    student = ds.students.get(record.get("student_id"))
+    for t in (record.get("result") or {}).get("trace", []):
+        if t["tool"] != "plan_schedule" or not t["ok"]:
+            continue
+        # Runs made before the preference check existed have no
+        # preferences_applied; then the model's arguments were what was applied.
+        applied = t["result"].get("preferences_applied")
+        if applied is None:
+            args = t["arguments"]
+            applied = {**args, "required": args.get("required_preferences") or []}
+        prefs = Preferences(applied.get("earliest_start") or None, applied.get("latest_end") or None,
+                            tuple(d.upper() for d in applied.get("avoid_days") or ()),
+                            tuple(applied.get("required") or ()))
+        for option in t["result"].get("options", []):
+            ids = option["section_ids"]
+            check = validate_schedule(student, ids, record.get("term_id"), ds.sections, ds.courses)
+            broken = [s for s in ids if s in ds.sections and not prefs.allows(ds.sections[s])]
+            if not check.valid or broken:
+                found.append({"section_ids": ids, "issues": [i.code for i in check.issues],
+                              "required_preference_broken_by": broken})
+    return found
+
+
+def summarize(cases: list[dict], scores: list[dict], records: list[dict], ds=None) -> dict:
     by_id = {c["id"]: c for c in cases}
+    rec_by_id = {r["case_id"]: r for r in records}
     criteria: dict[str, list[bool]] = {}
     for s in scores:
         for name, c in s["checks"].items():
@@ -122,8 +163,35 @@ def summarize(cases: list[dict], scores: list[dict], records: list[dict]) -> dic
         return {"passed": sum(values), "total": len(values),
                 "rate": round(sum(values) / len(values), 3) if values else None}
 
+    pref_scores = [s for s in scores if "model_required_correct" in s.get("extra", {})]
+    tool_correct = []
+    for s in scores:
+        relevant = [s["checks"][k]["pass"] for k in ("tool_use", "course_ids", "preferences")
+                    if k in s["checks"]]
+        if relevant:
+            tool_correct.append(all(relevant))
+    violations = {}
+    if ds is not None:
+        for s in scores:
+            v = hard_constraint_violations(rec_by_id[s["id"]], ds)
+            if v:
+                violations[s["id"]] = v
+    per_case_latency = {s["id"]: rec_by_id[s["id"]].get("wall_s") for s in scores}
+
     return {
         "cases": rate([s["pass"] for s in scores]),
+        "preference_classification": {
+            "model_raw": rate([s["extra"]["model_required_correct"] for s in pref_scores]),
+            "applied": rate([s["checks"]["required"]["pass"] for s in pref_scores]),
+            "corrections": {s["id"]: s["extra"]["corrections"] for s in pref_scores
+                            if s["extra"]["corrections"]},
+        },
+        "tool_call_correctness": rate(tool_correct),
+        "grounded": rate([s["checks"]["grounded"]["pass"] for s in scores if "grounded" in s["checks"]]),
+        "invalid_tool_calls": sum(s.get("extra", {}).get("invalid_tool_calls", 0) for s in scores),
+        "hard_constraint_violations": {"checked": ds is not None, "count": sum(map(len, violations.values())),
+                                       "cases": violations},
+        "latency_per_case_s": per_case_latency,
         "criteria": {k: rate(v) for k, v in sorted(criteria.items())},
         "categories": {k: rate(v) for k, v in sorted(categories.items())},
         "latency_s": {

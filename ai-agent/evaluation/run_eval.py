@@ -37,6 +37,7 @@ from agent.assistant import SchedulingAssistant  # noqa: E402
 from agent.banner_tools import BannerTools  # noqa: E402
 from agent.llm import LLMError, OllamaLLM, ScriptedLLM  # noqa: E402
 from evaluation.scoring import score_case, summarize  # noqa: E402
+from scheduling.loader import load_dataset  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().with_name("cases.json")
 SERVER = ROOT / "dev" / "fake_mcp_server.py"
@@ -49,13 +50,15 @@ def load_cases(ids: list[str] | None = None) -> dict:
     return data
 
 
-async def run_case(case: dict, term_id: str, llm, server_params) -> dict:
+async def run_case(case: dict, term_id: str, llm, server_params,
+                   check_preference_language: bool = True) -> dict:
     record = {"case_id": case["id"], "request": case["request"], "student_id": case["student_id"],
               "term_id": term_id}
     started = time.perf_counter()
     try:
         async with Client(server_params) as client:
-            assistant = SchedulingAssistant(BannerTools(client), llm, case["student_id"], term_id)
+            assistant = SchedulingAssistant(BannerTools(client), llm, case["student_id"], term_id,
+                                            check_preference_language=check_preference_language)
             result = await assistant.run(case["request"])
         record["result"] = result.to_dict()
     except (LLMError, Exception) as e:  # keep going: a failed case is evidence too
@@ -75,7 +78,17 @@ def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], re
         f"- Mode: {meta['mode']}; model: {meta.get('model')}; think: {meta.get('think')}; "
         f"num_ctx: {meta.get('num_ctx')}",
         f"- Machine: {meta['machine']}",
-        f"- Cases passed: {summary['cases']['passed']}/{summary['cases']['total']}",
+        f"- Preference check: {meta.get('preference_check')}",
+        f"- Cases passed: {summary['cases']['passed']}/{summary['cases']['total']}"
+        f" (missing: {', '.join(summary.get('cases_missing', [])) or 'none'})",
+        f"- Preference classification: model {summary['preference_classification']['model_raw']['passed']}/"
+        f"{summary['preference_classification']['model_raw']['total']}, applied "
+        f"{summary['preference_classification']['applied']['passed']}/"
+        f"{summary['preference_classification']['applied']['total']}",
+        f"- Tool-call correctness: {summary['tool_call_correctness']['passed']}/"
+        f"{summary['tool_call_correctness']['total']}; invalid tool calls: {summary['invalid_tool_calls']}",
+        f"- Grounded answers: {summary['grounded']['passed']}/{summary['grounded']['total']}",
+        f"- Hard-constraint violations in returned options: {summary['hard_constraint_violations']['count']}",
         f"- Latency (s): median {summary['latency_s']['median']}, mean {summary['latency_s']['mean']}, "
         f"max {summary['latency_s']['max']}",
         "",
@@ -100,6 +113,12 @@ async def main() -> None:
     p.add_argument("--no-think", action="store_true")
     p.add_argument("--num-ctx", type=int)
     p.add_argument("--oracle", action="store_true", help="replay each case's ideal responses, no model")
+    p.add_argument("--no-preference-check", action="store_true",
+                   help="ablation: let the model's required_preferences stand unchecked")
+    p.add_argument("--resume", action="store_true",
+                   help="keep finished cases already in --out and run only the missing ones")
+    p.add_argument("--summarize-only", action="store_true",
+                   help="rebuild summary.json/.md from the case files in --out, no runs")
     p.add_argument("--out", required=True)
     a = p.parse_args()
 
@@ -112,6 +131,7 @@ async def main() -> None:
         "model": None if a.oracle else a.model,
         "think": None if a.oracle else (not a.no_think),
         "num_ctx": a.num_ctx,
+        "preference_check": not a.no_preference_check,
         "cases_version": data["version"],
         "machine": f"{platform.system()} {platform.machine()} python {platform.python_version()}",
     }
@@ -121,17 +141,32 @@ async def main() -> None:
 
     records, scores = [], []
     for case in data["cases"]:
+        path = out / f"{case['id']}.json"
+        if (a.resume or a.summarize_only) and path.exists():
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            record = saved["record"]
+            score = score_case(case, record)  # rescored with the current scorer
+            records.append(record)
+            scores.append(score)
+            print(f"{case['id']} kept from earlier run pass={score['pass']}", flush=True)
+            continue
+        if a.summarize_only:
+            print(f"{case['id']} missing (not run)", flush=True)
+            continue
         llm = ScriptedLLM(case["oracle"]) if a.oracle else live_llm
-        record = await run_case(case, data["term_id"], llm, params)
+        record = await run_case(case, data["term_id"], llm, params,
+                                check_preference_language=not a.no_preference_check)
         score = score_case(case, record)
         records.append(record)
         scores.append(score)
-        (out / f"{case['id']}.json").write_text(
+        path.write_text(
             json.dumps({"meta": meta, "record": record, "score": score}, indent=2), encoding="utf-8")
         failed = [k for k, c in score["checks"].items() if not c["pass"]]
         print(f"{case['id']} pass={score['pass']} wall={record['wall_s']}s failed={failed}", flush=True)
 
-    summary = summarize(data["cases"], scores, records)
+    summary = summarize(data["cases"], scores, records, load_dataset())
+    summary["cases_missing"] = [c["id"] for c in data["cases"]
+                                if c["id"] not in {r["case_id"] for r in records}]
     meta["finished_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     (out / "summary.json").write_text(json.dumps({"meta": meta, "summary": summary}, indent=2),
                                       encoding="utf-8")
