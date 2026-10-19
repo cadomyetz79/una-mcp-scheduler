@@ -100,3 +100,11 @@ def test_reconcile_never_changes_a_preference_the_text_does_not_mention():
     req, fixes = reconcile("I can't do Fridays.", ["avoid_days", "earliest_start"], ["earliest_start"])
     assert req == ["avoid_days", "earliest_start"]
     assert [f["preference"] for f in fixes] == ["avoid_days"]
+
+
+@pytest.mark.parametrize("word", ["Monday", "Tuesdays", "Tue", "Wednesday", "Wednesdays", "Wed", "Thursday",
+                                  "Thurs", "Friday", "Saturday", "Saturdays", "Sunday", "weekends"])
+def test_every_weekday_name_is_recognised(word):
+    # Regression: "Wednesday" and "Saturday" were not matched before 2026-10-19
+    # (found while validating the held-out set's oracle, before any live run).
+    assert classify(f"I can't do {word}.")["avoid_days"]["verdict"] == "required"

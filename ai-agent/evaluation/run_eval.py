@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import platform
 import sys
 import time
@@ -36,15 +37,33 @@ from mcp.client.stdio import StdioServerParameters  # noqa: E402
 from agent.assistant import SchedulingAssistant  # noqa: E402
 from agent.banner_tools import BannerTools  # noqa: E402
 from agent.llm import LLMError, OllamaLLM, ScriptedLLM  # noqa: E402
-from evaluation.scoring import score_case, summarize  # noqa: E402
+from evaluation.scoring import score_case, score_case_v2, summarize, summarize_v2  # noqa: E402
 from scheduling.loader import load_dataset  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().with_name("cases.json")
+DATASETS = {
+    "dev": CASES_PATH,  # development set (19 cases); its v1 results are historical evidence
+    "heldout": Path(__file__).resolve().parent / "heldout" / "cases.json",
+}
+DEV_V2_OVERLAY = Path(__file__).resolve().with_name("dev_scoring_v2.json")
 SERVER = ROOT / "dev" / "fake_mcp_server.py"
 
 
-def load_cases(ids: list[str] | None = None) -> dict:
-    data = json.loads(CASES_PATH.read_text(encoding="utf-8"))
+def data_dir_of(data: dict) -> Path:
+    return (ROOT / data["data_dir"]).resolve() if data.get("data_dir") else (ROOT.parent / "data").resolve()
+
+
+def load_cases(ids: list[str] | None = None, dataset: str = "dev", scoring_version: int | None = None) -> dict:
+    data = json.loads(DATASETS[dataset].read_text(encoding="utf-8"))
+    data.setdefault("scoring_version", 1)
+    if scoring_version:
+        data["scoring_version"] = scoring_version
+    if dataset == "dev" and data["scoring_version"] >= 2:
+        # v2 adds stricter assertions to some development cases (documented in the overlay).
+        overlay = json.loads(DEV_V2_OVERLAY.read_text(encoding="utf-8"))
+        for c in data["cases"]:
+            c["expect"] = {**c["expect"], **overlay["expect"].get(c["id"], {})}
+            c["oracle"] = overlay.get("oracle", {}).get(c["id"], c["oracle"])
     if ids:
         data["cases"] = [c for c in data["cases"] if c["id"] in ids]
     return data
@@ -105,6 +124,15 @@ def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], re
     ]
     for name, r in summary["criteria"].items():
         lines.append(f"| {name} | {r['passed']}/{r['total']} | {r['rate']} |")
+    if "false_claims" in summary:
+        lines[7:7] = [
+            f"- Scoring version: {summary.get('scoring_version')}",
+            f"- False academic claims (vs. dataset truth): {summary['false_claims']['count']} "
+            f"{summary['false_claims']['cases']}",
+            f"- Claims without plan_schedule support (v2 audit): {summary['unsupported_claims_v2']['count']} "
+            f"{summary['unsupported_claims_v2']['cases']}",
+            f"- Tokens: prompt {summary['tokens']['prompt']}, output {summary['tokens']['output']}",
+        ]
     lines += ["", "| Case | Pass | Failed checks | Tools | Wall s |", "|---|---|---|---|---|"]
     for s in scores:
         r = by_id[s["id"]]
@@ -117,6 +145,9 @@ def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], re
 async def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--cases", nargs="*", help="case IDs to run (default: all)")
+    p.add_argument("--dataset", choices=sorted(DATASETS), default="dev")
+    p.add_argument("--scoring-version", type=int, choices=[1, 2],
+                   help="default: the dataset's own (dev 1, heldout 2)")
     p.add_argument("--model", default="qwen3:8b")
     p.add_argument("--no-think", action="store_true")
     p.add_argument("--num-ctx", type=int)
@@ -132,7 +163,12 @@ async def main() -> None:
     p.add_argument("--out", required=True)
     a = p.parse_args()
 
-    data = load_cases(a.cases)
+    data = load_cases(a.cases, a.dataset, a.scoring_version)
+    v2 = data["scoring_version"] >= 2
+    ds = load_dataset(data_dir_of(data))
+
+    def rescore(case, record):
+        return score_case_v2(case, record, ds) if v2 else score_case(case, record)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     meta = {
@@ -144,9 +180,13 @@ async def main() -> None:
         "preference_check": not a.no_preference_check,
         "evidence_check": not a.no_evidence_check,
         "cases_version": data["version"],
+        "dataset": a.dataset,
+        "data_dir": str(data_dir_of(data).relative_to(ROOT.parent)),
+        "scoring_version": data["scoring_version"],
         "machine": f"{platform.system()} {platform.machine()} python {platform.python_version()}",
     }
-    params = StdioServerParameters(command=sys.executable, args=[str(SERVER)])
+    params = StdioServerParameters(command=sys.executable, args=[str(SERVER)],
+                                   env={**os.environ, "UNA_DATA_DIR": str(data_dir_of(data))})
     live_llm = None if a.oracle else OllamaLLM(model=a.model, think=False if a.no_think else None,
                                                num_ctx=a.num_ctx)
 
@@ -158,7 +198,7 @@ async def main() -> None:
             saved = json.loads(path.read_text(encoding="utf-8"))
             saved_meta = saved_meta or saved.get("meta")
             record = saved["record"]
-            score = score_case(case, record)  # rescored with the current scorer
+            score = rescore(case, record)  # rescored with the current scorer
             records.append(record)
             scores.append(score)
             print(f"{case['id']} kept from earlier run pass={score['pass']}", flush=True)
@@ -170,7 +210,7 @@ async def main() -> None:
         record = await run_case(case, data["term_id"], llm, params,
                                 check_preference_language=not a.no_preference_check,
                                 check_evidence=not a.no_evidence_check)
-        score = score_case(case, record)
+        score = rescore(case, record)
         records.append(record)
         scores.append(score)
         path.write_text(
@@ -181,9 +221,11 @@ async def main() -> None:
     if a.summarize_only and saved_meta:
         # Keep the settings of the run that produced the records; note the rescoring.
         meta = {**saved_meta, "rescored_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "rescored_with": "current evaluation/scoring.py"}
+                "rescored_with": f"current evaluation/scoring.py, scoring v{data['scoring_version']}",
+                "scoring_version": data["scoring_version"]}
         meta.setdefault("preference_check", not a.no_preference_check)
-    summary = summarize(data["cases"], scores, records, load_dataset())
+    summary = (summarize_v2(data["cases"], scores, records, ds) if v2
+               else summarize(data["cases"], scores, records, ds))
     summary["cases_missing"] = [c["id"] for c in data["cases"]
                                 if c["id"] not in {r["case_id"] for r in records}]
     if not a.summarize_only:

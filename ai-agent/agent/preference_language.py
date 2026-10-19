@@ -67,7 +67,8 @@ _EARLIEST = re.compile(
 _LATEST = re.compile(
     rf"\b(done|finish(ed)?|end|out|free)\s+(by|before)\b|\buntil\b|\bafternoons?\b|\bevenings?\b"
     rf"|\blate\b|\bafter\s+{_HOUR}{_PM}|\bby\s+{_HOUR}", re.I)
-_DAYS = re.compile(r"\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day)?s?\b|\bweekends?\b", re.I)
+# Full weekday names need their own stems: "wed"+"day" never matched "wednesday".
+_DAYS = re.compile(r"\b(mon|tues?|wed(nes)?|thu(rs?)?|fri|sat(ur)?|sun)(day)?s?\b|\bweekends?\b", re.I)
 _COURSE = re.compile(r"\b[A-Z]{2,4}\s?\d{3}\b")
 _SENTENCES = re.compile(r"[.!?;\n]+")
 _FRAGMENTS = re.compile(r",|\b(?:and|but|so|while|also)\b", re.I)
