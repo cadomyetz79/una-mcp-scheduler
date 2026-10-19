@@ -1,6 +1,7 @@
 # Held-out set 2 — pre-registration
 
-Status: **frozen before any live model run of this set.** The commit that adds
+Status: **frozen before any live model run of this set. Not run yet**
+(as of the end of the security-hardening work, 2026-10-19). The commit that adds
 this file is the pre-registration. Anything changed after it is listed under
 "Changes after freezing", with the reason.
 

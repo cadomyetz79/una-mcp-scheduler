@@ -109,6 +109,10 @@ Security-related tools:
 - `run_eval.py --no-security-check` (ablation) and `--num-predict N` (output
   cap). Records never keep leaked instruction text.
 
+Security hardening, final code (development data, `2026-10-19-security-report.md`):
+the six held-out failures 6/6, ten held-out controls 10/10, security live
+set 10/11 (scoring v2.2; 9/11 under v2.1). `heldout2` has not been run.
+
 Compare two runs:
 
 ```

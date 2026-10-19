@@ -368,3 +368,33 @@ etc. are now soft unless listed in `required_preferences`.
 
 **LIMITS**: one model, CPU, two runs, synthetic English data; the dataset
 author also wrote the rules (H32 documented).
+
+### 2026-10-19 — Security hardening (branch `feature/security-hardening`)
+
+**CONFIRMED (tests and live development runs; `docs/evidence/2026-10-19-security-report.md`)**
+- The 34-case held-out set is development data from here on (`8f95f8e`); a
+  new 37-case held-out set (`evaluation/heldout2/`, own ITM data) was
+  pre-registered for future generalisation claims and has not been run.
+- Trust boundaries in code (`agent/security.py`): input inspection, fake
+  tool output / system markers labelled as student text, instruction-like
+  tool data removed before the model sees it, output guard against
+  instruction/tool-definition leaks (fixed refusal; logs keep length + hash),
+  and answers still unverified after one revision are replaced by an answer
+  built from tool results (`agent/safe_answer.py`) instead of being returned
+  flagged.
+- Academic correctness: course vs section ID schemas (H15); the student's
+  named sections are validated as one combination and an unstated conflict
+  gets a deterministic sentence (H14); relaxed wishes are "conflicting" and
+  never override the model (H32); wishes the student never mentioned are not
+  applied; prerequisite mentions are not claim subjects.
+- Tests: 428 passed, 1 skipped (was 222 + 1). New-set input inspection
+  (measured before any run): 5/10 attacks flagged, 0/27 false positives.
+  Replay on 126 recorded live answers: 0 passing answers changed.
+- Live, final code (development data): the six held-out failures 6/6,
+  ten held-out controls 10/10, security live set 10/11 (scoring v2.2); no
+  legitimate request blocked; a real partial prompt leak (H20) was blocked by
+  the output guard. Deterministic checks cost < 1 ms per case.
+
+**LIMITS**: keyword input inspection misses half of the new set's attacks;
+paraphrased/translated leaks are not detected; single-turn only; one model on
+CPU; rules and most tests written by the same developer. Not production-ready.
