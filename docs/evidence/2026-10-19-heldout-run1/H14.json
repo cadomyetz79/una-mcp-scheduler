@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T09:21:28+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H14",
+    "request": "I want CIS340 in section SEC5001 and CIS360 in SEC5301.",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "error": "ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)",
+    "wall_s": 442.44,
+    "llm_calls": [
+      {
+        "wall_s": 34.26,
+        "prompt_tokens": 985,
+        "output_tokens": 51,
+        "prompt_s": 6.37,
+        "output_s": 27.86,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 42.54,
+        "prompt_tokens": 1095,
+        "output_tokens": 43,
+        "prompt_s": 18.84,
+        "output_s": 23.68,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      },
+      {
+        "wall_s": 64.09,
+        "prompt_tokens": 1244,
+        "output_tokens": 31,
+        "prompt_s": 44.44,
+        "output_s": 19.62,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      }
+    ]
+  },
+  "score": {
+    "id": "H14",
+    "pass": false,
+    "checks": {
+      "completed": {
+        "pass": false,
+        "detail": "run error: ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)"
+      }
+    },
+    "scoring_version": 2
+  }
+}

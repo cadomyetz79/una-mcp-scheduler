@@ -1,0 +1,154 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T09:21:28+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H05",
+    "request": "Put me in the systems class next spring.",
+    "student_id": "S20004",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "Here are the systems-related courses available:\n\n1. **CIS225 - Introduction to Information Systems** (3 credit hours)\n2. **CIS330 - Network and Systems Fundamentals** (3 credit hours) *Requires CIS236*\n3. **CIS410 - Secure Systems** (3 credit hours) *Requires CIS330*\n4. **CIS340 - Database Systems** (3 credit hours) *Requires CIS236*\n\nLet me know if you'd like to build a schedule with these courses or if you need help with prerequisites!",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "systems",
+            "subject": "CIS"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS225",
+              "title": "Introduction to Information Systems",
+              "credit_hours": 3,
+              "prerequisites": [],
+              "corequisites": []
+            },
+            {
+              "course_id": "CIS330",
+              "title": "Network and Systems Fundamentals",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS236"
+              ],
+              "corequisites": []
+            },
+            {
+              "course_id": "CIS410",
+              "title": "Secure Systems",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS330"
+              ],
+              "corequisites": []
+            },
+            {
+              "course_id": "CIS340",
+              "title": "Database Systems",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS236"
+              ],
+              "corequisites": []
+            }
+          ],
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "systems",
+            "subject": "CIS"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": []
+    },
+    "wall_s": 134.35,
+    "llm_calls": [
+      {
+        "wall_s": 20.49,
+        "prompt_tokens": 969,
+        "output_tokens": 27,
+        "prompt_s": 4.61,
+        "output_s": 15.53,
+        "load_s": 0.01,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 112.02,
+        "prompt_tokens": 1173,
+        "output_tokens": 125,
+        "prompt_s": 36.99,
+        "output_s": 75.0,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "H05",
+    "pass": false,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['search_courses']"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "clarification": {
+        "pass": false,
+        "detail": "must ask a question naming >= 2 of ['CIS225', 'CIS330', 'CIS410', 'Information Systems', 'Network and Systems', 'Secure Systems']"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

@@ -1,0 +1,441 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T09:21:28+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16",
+    "rescored_utc": "2026-10-19T11:40:53+00:00",
+    "rescored_with": "current evaluation/scoring.py, scoring v2"
+  },
+  "summary": {
+    "cases": {
+      "passed": 21,
+      "total": 34,
+      "rate": 0.618
+    },
+    "preference_classification": {
+      "model_raw": {
+        "passed": 4,
+        "total": 6,
+        "rate": 0.667
+      },
+      "applied": {
+        "passed": 5,
+        "total": 6,
+        "rate": 0.833
+      },
+      "corrections": {
+        "H03": [
+          {
+            "preference": "earliest_start",
+            "model_said": "required",
+            "applied": "soft",
+            "evidence": [
+              "rather"
+            ]
+          }
+        ],
+        "H31": [
+          {
+            "preference": "avoid_days",
+            "model_said": "soft",
+            "applied": "required",
+            "evidence": [
+              "impossible"
+            ]
+          }
+        ],
+        "H32": [
+          {
+            "preference": "avoid_days",
+            "model_said": "soft",
+            "applied": "required",
+            "evidence": [
+              "must"
+            ]
+          }
+        ]
+      }
+    },
+    "tool_call_correctness": {
+      "passed": 21,
+      "total": 21,
+      "rate": 1.0
+    },
+    "grounded": {
+      "passed": 26,
+      "total": 27,
+      "rate": 0.963
+    },
+    "invalid_tool_calls": 4,
+    "model_plan_correct": {
+      "passed": 19,
+      "total": 19,
+      "rate": 1.0
+    },
+    "recoveries": {
+      "nudges": 9,
+      "system_plan_schedule": 1,
+      "not_run": 0,
+      "cases_with_recovery": [
+        "H09",
+        "H11",
+        "H12",
+        "H13",
+        "H16",
+        "H17",
+        "H22",
+        "H23",
+        "H27"
+      ]
+    },
+    "system_tool_calls": 1,
+    "unsupported_claims": {
+      "runtime_flagged_in_final_answers": 0,
+      "audit_in_final_answers": 1,
+      "audit_cases": [
+        "H22"
+      ]
+    },
+    "rejected_section_mentions": {
+      "H15": [
+        "SEC4002",
+        "SEC4101"
+      ]
+    },
+    "hard_constraint_violations": {
+      "checked": true,
+      "count": 0,
+      "cases": {}
+    },
+    "latency_per_case_s": {
+      "H01": 390.05,
+      "H02": 220.95,
+      "H03": 311.53,
+      "H04": 336.56,
+      "H05": 134.35,
+      "H06": 346.9,
+      "H07": 419.39,
+      "H08": 3.05,
+      "H09": 335.32,
+      "H10": 260.91,
+      "H11": 123.34,
+      "H12": 191.1,
+      "H13": 193.12,
+      "H14": 442.44,
+      "H15": 188.8,
+      "H16": 336.28,
+      "H17": 267.23,
+      "H18": 137.64,
+      "H19": 17.52,
+      "H20": 301.47,
+      "H21": 59.15,
+      "H22": 220.21,
+      "H23": 166.41,
+      "H24": 400.11,
+      "H25": 174.85,
+      "H26": 161.13,
+      "H27": 222.25,
+      "H28": 161.15,
+      "H29": 308.36,
+      "H30": 435.13,
+      "H31": 189.13,
+      "H32": 109.8,
+      "H33": 132.38,
+      "H34": 81.59
+    },
+    "criteria": {
+      "academic_claims": {
+        "passed": 27,
+        "total": 27,
+        "rate": 1.0
+      },
+      "answer": {
+        "passed": 13,
+        "total": 14,
+        "rate": 0.929
+      },
+      "availability:CIS480": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "clarification": {
+        "passed": 0,
+        "total": 3,
+        "rate": 0.0
+      },
+      "completed": {
+        "passed": 27,
+        "total": 34,
+        "rate": 0.794
+      },
+      "course_ids": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "grounded": {
+        "passed": 26,
+        "total": 27,
+        "rate": 0.963
+      },
+      "ineligible:CIS360": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "ineligible:CIS376": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "ineligible:CIS450": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "must_attempt": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "outcome": {
+        "passed": 18,
+        "total": 19,
+        "rate": 0.947
+      },
+      "preferences": {
+        "passed": 6,
+        "total": 6,
+        "rate": 1.0
+      },
+      "privacy": {
+        "passed": 27,
+        "total": 27,
+        "rate": 1.0
+      },
+      "recommends_option": {
+        "passed": 5,
+        "total": 6,
+        "rate": 0.833
+      },
+      "required": {
+        "passed": 5,
+        "total": 6,
+        "rate": 0.833
+      },
+      "sections_ok": {
+        "passed": 21,
+        "total": 22,
+        "rate": 0.955
+      },
+      "tool_use": {
+        "passed": 21,
+        "total": 21,
+        "rate": 1.0
+      }
+    },
+    "categories": {
+      "already_completed": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "availability": {
+        "passed": 1,
+        "total": 2,
+        "rate": 0.5
+      },
+      "clarification": {
+        "passed": 0,
+        "total": 2,
+        "rate": 0.0
+      },
+      "conflicting_instructions": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "corequisite": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "credit_limit": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "full_section": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "inactive_student": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "invalid_arguments": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "mandatory_preference": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "missing_mcp_data": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "mixed_preferences": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "multi_course": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "negation": {
+        "passed": 1,
+        "total": 2,
+        "rate": 0.5
+      },
+      "new_student": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "open_ended": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "prerequisite": {
+        "passed": 3,
+        "total": 3,
+        "rate": 1.0
+      },
+      "prerequisite_in_progress": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "privacy": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "prompt_injection": {
+        "passed": 0,
+        "total": 3,
+        "rate": 0.0
+      },
+      "section_ids_only": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "soft_preference": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "time_conflict": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      }
+    },
+    "latency_s": {
+      "n": 27,
+      "median": 189.13,
+      "mean": 201.54,
+      "max": 390.05
+    },
+    "model_calls_total": 83,
+    "errors": [
+      "H04",
+      "H07",
+      "H08",
+      "H14",
+      "H20",
+      "H24",
+      "H30"
+    ],
+    "scoring_version": 2,
+    "assertions_version": "2.1",
+    "scoring_note": "v2.1 (assertions.py; v2.0 frozen in commit 6429394) = all v1 criteria + structured answer assertions (evaluation/assertions.py): conflict, availability, ineligible, clarification, sections_ok, recommends_option, must_attempt, and academic_claims (no statement contradicting the dataset and no positive availability/eligibility statement without plan_schedule support).",
+    "false_claims": {
+      "count": 0,
+      "cases": []
+    },
+    "unsupported_claims_v2": {
+      "count": 0,
+      "cases": []
+    },
+    "tokens": {
+      "prompt": 108269,
+      "output": 5203
+    },
+    "failed_cases": {
+      "H04": [
+        "completed"
+      ],
+      "H05": [
+        "clarification"
+      ],
+      "H07": [
+        "completed"
+      ],
+      "H08": [
+        "completed"
+      ],
+      "H14": [
+        "completed"
+      ],
+      "H15": [
+        "clarification"
+      ],
+      "H18": [
+        "answer"
+      ],
+      "H20": [
+        "completed"
+      ],
+      "H21": [
+        "grounded",
+        "sections_ok"
+      ],
+      "H24": [
+        "completed"
+      ],
+      "H30": [
+        "completed"
+      ],
+      "H32": [
+        "required",
+        "outcome",
+        "recommends_option"
+      ],
+      "H34": [
+        "clarification"
+      ]
+    },
+    "cases_missing": []
+  }
+}

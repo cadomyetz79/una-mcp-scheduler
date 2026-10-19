@@ -1,0 +1,249 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T09:21:28+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H17",
+    "request": "Schedule CIS360 on 2027-01-15 at 6:00 PM in room 101.",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "Here are the valid options for taking CIS360 in 2027SP:\n\n1. **SEC5301**  \n   - Days: Tuesday, Thursday  \n   - Time: 09:30 AM - 10:45 AM  \n   - Location: Building B 210  \n   - Credit Hours: 3  \n   - Meets all preferences: Yes  \n\n2. **SEC5302**  \n   - Days: Monday, Wednesday  \n   - Time: 06:00 PM - 07:15 PM  \n   - Location: Building B 210  \n   - Credit Hours: 3  \n   - Meets all preferences: Yes  \n\nBoth options are available, and neither conflicts with any preferences. Let me know if you'd like to add more courses or adjust preferences!",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 3,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS360"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS360"
+            ],
+            "options": [
+              {
+                "section_ids": [
+                  "SEC5301"
+                ],
+                "total_credit_hours": 3,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC5301",
+                    "course_id": "CIS360",
+                    "modality": "in_person",
+                    "seats_available": 8,
+                    "meetings": [
+                      {
+                        "days": [
+                          "TUE",
+                          "THU"
+                        ],
+                        "start": "09:30",
+                        "end": "10:45",
+                        "location": "Building B 210"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 1
+              },
+              {
+                "section_ids": [
+                  "SEC5302"
+                ],
+                "total_credit_hours": 3,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC5302",
+                    "course_id": "CIS360",
+                    "modality": "in_person",
+                    "seats_available": 16,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "18:00",
+                        "end": "19:15",
+                        "location": "Building B 210"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 2
+              }
+            ],
+            "excluded": [],
+            "combinations_checked": 2,
+            "rejection_counts": {},
+            "total_valid_options": 2,
+            "options_truncated": false,
+            "search_capped": false,
+            "preferences_applied": {
+              "earliest_start": null,
+              "latest_end": null,
+              "avoid_days": [],
+              "required": []
+            }
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS360"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS360",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": [
+        {
+          "type": "nudge",
+          "missing_course_ids": [
+            "CIS360"
+          ],
+          "step": 1
+        }
+      ]
+    },
+    "wall_s": 267.23,
+    "llm_calls": [
+      {
+        "wall_s": 43.01,
+        "prompt_tokens": 991,
+        "output_tokens": 65,
+        "prompt_s": 7.65,
+        "output_s": 35.34,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      },
+      {
+        "wall_s": 40.13,
+        "prompt_tokens": 1145,
+        "output_tokens": 26,
+        "prompt_s": 26.7,
+        "output_s": 13.41,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 182.77,
+        "prompt_tokens": 1535,
+        "output_tokens": 179,
+        "prompt_s": 71.12,
+        "output_s": 111.62,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "H17",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS360'] want=['CIS360']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[['SEC5301'], ['SEC5302']] want=[['SEC5301'], ['SEC5302']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": true,
+        "detail": "missing_groups=[] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0,
+      "recoveries": [
+        "nudge"
+      ],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}
