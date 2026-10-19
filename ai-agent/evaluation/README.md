@@ -71,6 +71,18 @@ Windows (PowerShell, from `ai-agent`):
 .venv\Scripts\python.exe evaluation\run_eval.py --model qwen3:8b --no-think --out ..\docs\evidence\eval-windows
 ```
 
+## Results so far
+
+See `docs/evidence/2026-10-19-eval-report.md`: baseline 8/19, with the
+deterministic preference check 13/19 (qwen3:8b, CPU, one run each), plus the
+comparison table and raw records.
+
+Compare two runs:
+
+```
+python evaluation/compare.py RUN_A RUN_B --labels baseline check --out comparison.md
+```
+
 ## Limits (WORKING ASSUMPTION)
 
 - `answer` uses keyword matching. It checks that key facts are mentioned, not
