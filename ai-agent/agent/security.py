@@ -316,10 +316,26 @@ class LeakGuard:
         return None
 
 
+_INTERNAL_PHRASE = re.compile(r"(\b[Tt]he\s+)?[`'\"]?\b(" + "|".join(INTERNAL_NAMES) + r")\b[`'\"]?(\s+(tool|function))?")
+
+
 def redact_internal_names(answer: str) -> tuple[str, list[str]]:
-    """Replace a stray internal tool/parameter name with plain words."""
+    """Replace a stray internal tool/parameter name with plain words
+    ("the `plan_schedule` tool" -> "the schedule planner")."""
     found = sorted(set(_INTERNAL.findall(answer or "")))
-    return _INTERNAL.sub(lambda m: INTERNAL_NAMES[m.group(1)], answer or ""), found
+
+    def plain(m: re.Match) -> str:
+        words = INTERNAL_NAMES[m.group(2)]
+        article = m.group(1)
+        if not article:
+            return words
+        if words.startswith("the "):
+            return article + words[4:]  # "The `plan_schedule` tool" -> "The schedule planner"
+        if words.startswith("your "):
+            return words if article[0] == "t" else words[0].upper() + words[1:]
+        return article + words
+
+    return _INTERNAL_PHRASE.sub(plain, answer or ""), found
 
 
 # ----------------------------------------------- 5. injected compliance

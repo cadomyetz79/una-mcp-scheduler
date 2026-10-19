@@ -1,0 +1,297 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T16:59:43+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 900.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "security_check": true,
+    "num_predict": 768,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H32",
+    "request": "I must avoid Wednesdays. Actually, Wednesdays are fine if there's no other way. Plan CIS345 and CIS346.",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "I found one valid schedule for you. Here are the details:\n\n**Option 1:**\n- **Sections:** SEC5101 (CIS345) and SEC5201 (CIS346)\n- **Days:** Monday and Wednesday (CIS345), Wednesday (CIS346)\n- **Times:** 3:30 PM - 4:45 PM (CIS345), 5:00 PM - 6:50 PM (CIS346)\n- **Locations:** Building D 120 (CIS345), Building D 015 (CIS346)\n- **Total Credit Hours:** 6\n\nThis schedule meets your preference to avoid Wednesday classes only when necessary. Both courses meet on Wednesday, but they are scheduled in a way that minimizes conflict. Let me know if you'd like to explore other options!",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "avoid_days": [
+              "WED"
+            ],
+            "course_ids": [
+              "CIS345",
+              "CIS346"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS345",
+              "CIS346"
+            ],
+            "options": [
+              {
+                "section_ids": [
+                  "SEC5101",
+                  "SEC5201"
+                ],
+                "total_credit_hours": 6,
+                "meets_all_preferences": false,
+                "preference_violations": [
+                  {
+                    "section_id": "SEC5101",
+                    "preference": "avoid_days",
+                    "detail": "meets on WED",
+                    "excess_minutes": 0
+                  },
+                  {
+                    "section_id": "SEC5201",
+                    "preference": "avoid_days",
+                    "detail": "meets on WED",
+                    "excess_minutes": 0
+                  }
+                ],
+                "sections": [
+                  {
+                    "section_id": "SEC5101",
+                    "course_id": "CIS345",
+                    "modality": "in_person",
+                    "seats_available": 7,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "15:30",
+                        "end": "16:45",
+                        "location": "Building D 120"
+                      }
+                    ]
+                  },
+                  {
+                    "section_id": "SEC5201",
+                    "course_id": "CIS346",
+                    "modality": "in_person",
+                    "seats_available": 9,
+                    "meetings": [
+                      {
+                        "days": [
+                          "WED"
+                        ],
+                        "start": "17:00",
+                        "end": "18:50",
+                        "location": "Building D 015"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 1
+              }
+            ],
+            "excluded": [],
+            "combinations_checked": 1,
+            "rejection_counts": {},
+            "total_valid_options": 1,
+            "options_truncated": false,
+            "search_capped": false,
+            "requested_sections": null,
+            "preferences_applied": {
+              "earliest_start": null,
+              "latest_end": null,
+              "avoid_days": [
+                "WED"
+              ],
+              "required": []
+            },
+            "preference_deferred": [
+              {
+                "preference": "avoid_days",
+                "model_said": "soft",
+                "applied": "model's reading",
+                "reason": "the student's words both require and relax this preference",
+                "optional_cues": [
+                  "fine",
+                  "no other way"
+                ],
+                "mandatory_cues": [
+                  "must"
+                ]
+              }
+            ]
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS345"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS346"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS345",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS346",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": [],
+      "answer_source": "model",
+      "blocked": null,
+      "combination_claims": [],
+      "requested_section_notes": [],
+      "security": {
+        "input_findings": {
+          "override": [],
+          "exfiltration": [],
+          "forged_tool_output": [],
+          "impersonation": [],
+          "requested_reply": null
+        }
+      }
+    },
+    "wall_s": 259.48,
+    "llm_calls": [
+      {
+        "wall_s": 31.96,
+        "prompt_tokens": 1020,
+        "output_tokens": 41,
+        "prompt_s": 8.67,
+        "output_s": 23.26,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1,
+        "done_reason": "stop"
+      },
+      {
+        "wall_s": 225.94,
+        "prompt_tokens": 1537,
+        "output_tokens": 197,
+        "prompt_s": 100.3,
+        "output_s": 125.6,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0,
+        "done_reason": "stop"
+      }
+    ]
+  },
+  "score": {
+    "id": "H32",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS345', 'CIS346'] want=['CIS345', 'CIS346']"
+      },
+      "preferences": {
+        "pass": true,
+        "detail": "got={'avoid_days': ['WED']} want={'avoid_days': ['WED']}"
+      },
+      "required": {
+        "pass": true,
+        "detail": "applied=[] model=[] want=[]"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[['SEC5101', 'SEC5201']] want=[['SEC5101', 'SEC5201']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "recommends_option": {
+        "pass": true,
+        "detail": "answer must name every section of at least one valid option"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "model_required_correct": true,
+      "corrections": [],
+      "invalid_tool_calls": 0,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

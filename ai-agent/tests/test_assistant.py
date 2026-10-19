@@ -62,7 +62,7 @@ async def test_required_preferences_are_hard_filters():
         {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"],
                              earliest_start="10:00", required_preferences=["earliest_start"])]},
         {"content": "CIS376 has no section after 10. CIS410 options: SEC2001 or SEC2002."},
-    ])
+    ], request="Plan CIS376 and CIS410, no classes before 10.")  # the time must be in the request
     plan = result.trace[0].result
     assert plan["excluded"][0]["code"] == "NO_SECTION_MATCHES_PREFERENCES"
     assert result.grounded
@@ -73,7 +73,7 @@ async def test_wishes_are_soft_by_default_and_reported():
     result, _ = await run([
         {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"], earliest_start="10:00")]},
         {"content": "SEC1001 + SEC2002 works but SEC1001 starts 30 minutes before 10:00."},
-    ])
+    ], request="Plan CIS376 and CIS410, no classes before 10.")
     plan = result.trace[0].result
     assert plan["excluded"] == []
     option = plan["options"][0]

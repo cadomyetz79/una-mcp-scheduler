@@ -113,4 +113,16 @@ A set written by someone else (a teammate) would be a stronger test.
 
 ## Changes after freezing
 
-None yet.
+System changes made after the freezing commit, all motivated by
+DEVELOPMENT data (no live run of this set had been made):
+
+- 2026-10-19, time/day wishes the student's message never mentions are not
+  applied (`agent/preference_language.py: unmentioned()`, reported as
+  `preferences_dropped`); "night(s)" counts as end-time wording. Motivation:
+  the live security set (SL05, SL10), where qwen3:8b added 08:00-17:00 and a
+  mandatory "avoid Fridays" to requests that mention no time or day.
+- 2026-10-19, a stray internal tool name in an answer is reworded naturally
+  ("the `plan_schedule` tool" -> "the schedule planner"). Motivation: the
+  live H18 answer (first held-out set, now development data).
+
+No case, expectation, oracle or scoring change.

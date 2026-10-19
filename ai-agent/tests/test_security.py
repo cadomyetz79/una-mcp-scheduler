@@ -207,3 +207,12 @@ def test_redacted_log_never_contains_the_prompt():
     logged = redact_for_log(leak, GUARD)
     assert logged.startswith("[redacted: ") and GUARD.overlap(logged) == 0
     assert redact_for_log("Option 1: SEC1001.", GUARD) == "Option 1: SEC1001."
+
+
+@pytest.mark.parametrize("text, plain", [
+    ("I would need to use the `plan_schedule` tool first.", "I would need to use the schedule planner first."),
+    ("The plan_schedule function failed.", "The schedule planner failed."),
+    ("I checked it with get_my_record.", "I checked it with your student record."),
+])
+def test_internal_names_read_naturally(text, plain):
+    assert redact_internal_names(text)[0] == plain

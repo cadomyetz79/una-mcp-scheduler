@@ -90,7 +90,7 @@ _EARLIEST = re.compile(
     rf"|\bafter\s+{_HOUR}(?!\s*(pm|p\.m\.))\b", re.I)
 _LATEST = re.compile(
     rf"\b(done|finish(ed)?|end|out|free)\s+(by|before)\b|\buntil\b|\bafternoons?\b|\bevenings?\b"
-    rf"|\blate\b|\bafter\s+{_HOUR}{_PM}|\bby\s+{_HOUR}", re.I)
+    rf"|\bnights?\b|\blate\b|\bafter\s+{_HOUR}{_PM}|\bby\s+{_HOUR}", re.I)
 # Full weekday names need their own stems: "wed"+"day" never matched "wednesday".
 _DAYS = re.compile(r"\b(mon|tues?|wed(nes)?|thu(rs?)?|fri|sat(ur)?|sun)(day)?s?\b|\bweekends?\b", re.I)
 _COURSE = re.compile(r"\b[A-Z]{2,4}\s?\d{3}\b")
@@ -211,6 +211,25 @@ def reconcile(request: str, stated: list[str], required: list[str]) -> tuple[lis
                 "evidence": info["optional_cues"] if info["verdict"] == "soft" else info["mandatory_cues"],
             })
     return sorted(applied), corrections
+
+
+_TOPIC = {"earliest_start": "start times", "latest_end": "end times", "avoid_days": "days"}
+
+
+def unmentioned(request: str, stated: list[str]) -> list[dict]:
+    """Stated preferences the student's message never talks about.
+
+    Live runs on 2026-10-19 (security live set SL05, SL10, development data)
+    showed qwen3:8b adding earliest_start 08:00 / latest_end 17:00 (and once a
+    mandatory "avoid Fridays") to requests that mention no time or day at all,
+    which removed valid schedules. A time or day wish whose subject never
+    appears in the request (no fragment about start times, end times or days)
+    has no basis in the student's words and is not applied. Limit: implicit
+    wording the patterns do not know (e.g. "I have practice after lunch") is
+    treated as not mentioned."""
+    reading = classify(request)
+    return [{"preference": p, "reason": f"the student's message does not mention {_TOPIC[p]}"}
+            for p in stated if not reading[p]["fragments"]]
 
 
 def deferrals(request: str, stated: list[str], required: list[str]) -> list[dict]:

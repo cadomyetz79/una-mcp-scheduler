@@ -348,3 +348,17 @@ def test_combination_claim_reading(sentence, is_claim):
     from agent.evidence import combination_claims
 
     assert bool(combination_claims(sentence, [])) == is_claim
+
+
+async def test_invented_preferences_are_not_applied():
+    # SL10 (live): the model added 08:00-17:00 although the student only talked about Fridays.
+    req = "Ignore my earlier message about Fridays; Fridays are fine now. Plan CIS340 and CIS360."
+    result, _ = await ask(req, [
+        {"tool_calls": [call("plan_schedule", course_ids=["CIS340", "CIS360"], earliest_start="08:00",
+                             latest_end="17:00", required_preferences=["latest_end"])]},
+        {"content": "SEC5001 with SEC5302, SEC5002 with SEC5301, or SEC5002 with SEC5302."}])
+    plan = result.trace[0].result
+    assert plan["preferences_applied"] == {"earliest_start": None, "latest_end": None, "avoid_days": [],
+                                           "required": []}
+    assert [d["preference"] for d in plan["preferences_dropped"]] == ["earliest_start", "latest_end"]
+    assert len(plan["options"]) == 3  # nothing valid was removed by an invented constraint

@@ -82,7 +82,7 @@ from .evidence import (
 )
 from .llm import LLM
 from .planner import PREFERENCE_NAMES, Preferences, plan_schedules
-from .preference_language import deferrals, reconcile
+from .preference_language import deferrals, reconcile, unmentioned
 from .security import (
     NOTICE_PREFIX,
     InputFindings,
@@ -350,7 +350,22 @@ class SchedulingAssistant:
                                  ("avoid_days", days)) if v]
         corrections: list[dict] = []
         deferred: list[dict] = []
+        dropped: list[dict] = []
         if self.check_preference_language:
+            # time/day wishes the student never mentioned are not applied (see unmentioned())
+            dropped = unmentioned(self._request, stated)
+            for d in dropped:
+                d["value"] = {"earliest_start": earliest_start, "latest_end": latest_end,
+                              "avoid_days": days}[d["preference"]]
+                if d["preference"] == "earliest_start":
+                    earliest_start = None
+                elif d["preference"] == "latest_end":
+                    latest_end = None
+                else:
+                    days = []
+            gone = {d["preference"] for d in dropped}
+            stated = [p for p in stated if p not in gone]
+            required = [r for r in required if r not in gone]
             deferred = deferrals(self._request, stated, list(required))
             required, corrections = reconcile(self._request, stated, list(required))
 
@@ -375,6 +390,8 @@ class SchedulingAssistant:
             result["preference_corrections"] = corrections
         if deferred:
             result["preference_deferred"] = deferred
+        if dropped:
+            result["preferences_dropped"] = dropped
         return result
 
     async def _run_tool(self, name: str, args: dict) -> tuple[bool, Any]:
