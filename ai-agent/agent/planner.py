@@ -195,7 +195,7 @@ async def plan_schedules(
 
     if requested_sections:
         result.requested_sections = check_requested_sections(
-            student, list(dict.fromkeys(requested_sections)), term_id, all_sections, courses)
+            student, list(dict.fromkeys(requested_sections)), term_id, all_sections, courses, requested)
 
     if not candidates:
         return result
@@ -247,8 +247,14 @@ async def plan_schedules(
 
 
 def check_requested_sections(student, section_ids: list[str], term_id: str,
-                             all_sections: dict[str, Section], courses: dict) -> dict:
-    """Validate the student's named sections as one combination."""
+                             all_sections: dict[str, Section], courses: dict,
+                             requested: list[str] | None = None) -> dict:
+    """Validate the student's named sections as one combination.
+
+    not_found_reason completes the sentence "<section> ...": a section is
+    looked up only among the sections of the planned courses, so it is either
+    not a section of them this term, or could not be checked at all because
+    no planned course is in the catalog."""
     found = [sid for sid in section_ids if sid in all_sections]
     not_found = [sid for sid in section_ids if sid not in all_sections]
     issues = []
@@ -260,8 +266,10 @@ def check_requested_sections(student, section_ids: list[str], term_id: str,
         "section_ids": section_ids,
         "sections": [_describe(all_sections[sid]) for sid in found],
         "not_found": not_found,
-        "not_found_reason": (f"not a {term_id} section of the planned course(s) "
-                             f"{', '.join(sorted(courses)) or '(none)'}") if not_found else None,
+        "not_found_reason": None if not not_found else (
+            f"is not a {term_id} section of the planned course(s) {', '.join(sorted(courses))}" if courses
+            else f"could not be checked because {', '.join(requested or []) or 'the planned course'} "
+                 "is not in the course catalog"),
         "valid_together": bool(found) and not not_found and not issues,
         "issues": issues,
         "in_returned_options": False,

@@ -1,0 +1,12 @@
+[
+  {
+    "student_id": "S10001",
+    "section_id": "SEC1001",
+    "status": "enrolled"
+  },
+  {
+    "student_id": "S10002",
+    "section_id": "SEC2002",
+    "status": "enrolled"
+  }
+]

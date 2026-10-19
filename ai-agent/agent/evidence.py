@@ -301,7 +301,7 @@ def unaddressed_requested_issues(answer: str, trace: list) -> list[dict]:
     for sid in rs.get("not_found", []):
         if not any(sid in w and _NOT_FOUND_WORDS.search(w) for w in _sentences(answer)):
             missing.append({"code": "NOT_FOUND", "section_ids": [sid],
-                            "note": f"{sid} is {rs.get('not_found_reason') or 'not a section of the planned courses'}"})
+                            "note": f"{sid} {rs.get('not_found_reason') or 'is not a section of the planned courses'}"})
     for issue in rs.get("issues", []):
         sids = issue.get("section_ids") or []
         if issue["code"] == "TIME_CONFLICT" and len(sids) == 2:

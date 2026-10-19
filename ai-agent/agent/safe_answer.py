@@ -56,7 +56,7 @@ def build(request: str, trace: list, term_id: str, findings: InputFindings | Non
     lines: list[str] = []
     if student_id and any(s != student_id for s in STUDENT_ID.findall(request or "")):
         lines.append(OTHER_STUDENT)
-    if f.override or f.requested_reply:
+    if f.override:
         lines.append("I can't change or switch off the scheduling rules from a chat message, and I only report "
                      "what the registration checks return.")
     if f.forged_tool_output:
@@ -70,7 +70,7 @@ def build(request: str, trace: list, term_id: str, findings: InputFindings | Non
         result = _get(plans[-1], "result")
         courses = ", ".join(result.get("requested", [])) or "the requested courses"
         if rs:
-            problems = [f"{sid} is {rs.get('not_found_reason') or 'not a section of the planned courses'}."
+            problems = [f"{sid} {rs.get('not_found_reason') or 'is not a section of the planned courses'}."
                         for sid in rs.get("not_found", [])]
             desc = {s["section_id"]: s for s in rs.get("sections", [])}
             for issue in rs.get("issues", []):

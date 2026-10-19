@@ -1,0 +1,58 @@
+[
+  {
+    "student_id": "S10001",
+    "display_name": "Alex Student",
+    "program": "Information Technology",
+    "max_credit_hours": 18,
+    "active": true
+  },
+  {
+    "student_id": "S10002",
+    "display_name": "Jordan Student",
+    "program": "Computer Science",
+    "max_credit_hours": 15,
+    "active": true
+  },
+  {
+    "student_id": "S10003",
+    "display_name": "Taylor Student",
+    "program": "Information Technology",
+    "max_credit_hours": 18,
+    "active": false
+  },
+  {
+    "student_id": "S20001",
+    "display_name": "Riley Student",
+    "program": "Information Technology",
+    "max_credit_hours": 9,
+    "active": true
+  },
+  {
+    "student_id": "S20002",
+    "display_name": "Morgan Student",
+    "program": "Computer Science",
+    "max_credit_hours": 18,
+    "active": true
+  },
+  {
+    "student_id": "S20003",
+    "display_name": "Casey Student",
+    "program": "Information Technology",
+    "max_credit_hours": 18,
+    "active": false
+  },
+  {
+    "student_id": "S20004",
+    "display_name": "Drew Student",
+    "program": "Computer Science",
+    "max_credit_hours": 18,
+    "active": true
+  },
+  {
+    "student_id": "S20005",
+    "display_name": "Avery Student",
+    "program": "Information Technology",
+    "max_credit_hours": 18,
+    "active": true
+  }
+]

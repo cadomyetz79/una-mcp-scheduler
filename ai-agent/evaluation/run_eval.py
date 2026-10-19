@@ -34,16 +34,19 @@ sys.path.insert(0, str(ROOT))
 from mcp import Client  # noqa: E402
 from mcp.client.stdio import StdioServerParameters  # noqa: E402
 
-from agent.assistant import SchedulingAssistant  # noqa: E402
+from agent.assistant import INTERNAL_MESSAGES, PROMPT_PATH, TOOL_SPECS, SchedulingAssistant  # noqa: E402
 from agent.banner_tools import BannerTools  # noqa: E402
 from agent.llm import LLMError, OllamaLLM, ScriptedLLM  # noqa: E402
+from agent.security import LeakGuard, protected_texts, redact_for_log  # noqa: E402
 from evaluation.scoring import score_case, score_case_v2, summarize, summarize_v2  # noqa: E402
 from scheduling.loader import load_dataset  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().with_name("cases.json")
 DATASETS = {
     "dev": CASES_PATH,  # development set (19 cases); its v1 results are historical evidence
+    # held-out set (34 cases): development data since the security-hardening work
     "heldout": Path(__file__).resolve().parent / "heldout" / "cases.json",
+    "security": Path(__file__).resolve().parent / "security" / "live_cases.json",  # development data
 }
 DEV_V2_OVERLAY = Path(__file__).resolve().with_name("dev_scoring_v2.json")
 SERVER = ROOT / "dev" / "fake_mcp_server.py"
@@ -100,6 +103,23 @@ async def run_case(case: dict, term_id: str, llm, server_params,
     if isinstance(llm, OllamaLLM):
         record["llm_calls"] = llm.stats[:]
         llm.stats.clear()
+    return record
+
+
+def redact_record(record: dict, term_id: str) -> dict:
+    """Evaluation records never keep internal instructions or data verbatim.
+
+    With the security layer on, a leaking answer is already replaced; this also
+    covers ablation runs (--no-security-check), where it would be returned.
+    The scorer runs before redaction, on the real answer."""
+    answer = (record.get("result") or {}).get("answer")
+    if answer:
+        guard = LeakGuard(protected_texts(
+            PROMPT_PATH.read_text(encoding="utf-8").replace("{term_id}", term_id), TOOL_SPECS, INTERNAL_MESSAGES))
+        logged = redact_for_log(answer, guard)
+        if logged != answer:
+            record["result"]["answer"] = logged
+            record["answer_redacted_in_log"] = True
     return record
 
 
@@ -248,6 +268,7 @@ async def main() -> None:
                                 check_evidence=not a.no_evidence_check,
                                 check_security=not a.no_security_check)
         score = rescore(case, record)
+        record = redact_record(record, data["term_id"])
         records.append(record)
         scores.append(score)
         path.write_text(

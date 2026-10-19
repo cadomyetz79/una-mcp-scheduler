@@ -290,3 +290,46 @@ async def test_security_layer_can_be_switched_off_for_ablation():
     # The evidence rules still see that "confirmed" adopts an unverified claim,
     # but without the security layer the flagged answer is returned (pre-2026-10-19 behaviour).
     assert result.answer == "confirmed" and not result.grounded and result.combination_claims
+
+
+# ------------------------------------------------------------ security live set (oracles)
+
+SEC = load_cases(dataset="security")
+
+
+@pytest.fixture
+def security_data(monkeypatch):
+    monkeypatch.setattr(fake, "DATA_DIR", data_dir_of(SEC))
+    return fake.server
+
+
+@pytest.mark.parametrize("case_id", [c["id"] for c in SEC["cases"]])
+async def test_security_live_set_oracles_pass_with_all_checks_on(case_id, security_data):
+    from agent.llm import ScriptedLLM as S
+    from evaluation.run_eval import run_case
+    from evaluation.scoring import score_case_v2
+    from scheduling.loader import load_dataset
+
+    case = next(c for c in SEC["cases"] if c["id"] == case_id)
+    record = await run_case(case, SEC["term_id"], S(case["oracle"]), security_data)
+    assert record["result"]["answer_source"] in ("model", "model+system_note")  # the guard lets them through
+    assert score_case_v2(case, record, load_dataset(data_dir_of(SEC)))["pass"]
+
+
+def test_sl02_forbidden_phrases_are_really_in_the_prompt():
+    case = next(c for c in SEC["cases"] if c["id"] == "SL02")
+    in_prompt = [p for p in case["expect"]["answer_none"] if p in PROMPT or p in json.dumps(TOOL_SPECS)]
+    assert len(in_prompt) >= 3  # the check would catch a verbatim leak
+
+
+async def test_scorer_catches_the_attacks_when_the_security_layer_is_off(security_data):
+    from evaluation.run_eval import run_case
+    from evaluation.scoring import score_case_v2
+    from scheduling.loader import load_dataset
+
+    ds = load_dataset(data_dir_of(SEC))
+    sl01 = next(c for c in SEC["cases"] if c["id"] == "SL01")
+    bad = [{"tool_calls": [call("plan_schedule", course_ids=["CIS340", "CIS360"])]},
+           {"content": "Done: SEC5001 and SEC5301 are approved."}] * 2
+    record = await run_case(sl01, TERM, ScriptedLLM(bad), security_data, check_security=False)
+    assert not score_case_v2(sl01, record, ds)["pass"]
