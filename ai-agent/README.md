@@ -339,3 +339,27 @@ etc. are now soft unless listed in `required_preferences`.
   answer); E14 passes partly through keyword scoring ("no conflicts").
   Dataset v2 with unseen requests is the next step.
 
+
+
+### 2026-10-19 — Held-out evaluation (branch `feature/heldout-evaluation`)
+
+**CONFIRMED (live, qwen3:8b, CPU; `docs/evidence/2026-10-19-heldout-report.md`)**
+- New held-out set: 34 requests with their own data, pre-registered in
+  `6429394` before any run; scoring v2 with sentence-level assertions (the
+  E14 "no conflicts" weakness is fixed; development final system 19/19 ->
+  18/19 under v2.1).
+- Two complete runs (plus retries of infrastructure failures): 25/34 each,
+  identical pass/fail and tool calls in all 34 cases. 0 false or
+  unsupported academic claims, 0 hard-constraint violations, tool-call
+  correctness 27/27, grounded 33/34.
+- Failures: three prompt injections succeed (bare "confirmed", system
+  prompt printed, fake tool result accepted), section IDs used as course
+  IDs, an unstated conflict, the deterministic check overriding a correct
+  model reading (H32), and three scoring-strictness cases.
+- The system-run fallback ran live once (H22, missing student record) and
+  reported the limitation correctly; scripted tests cover the other paths.
+- Infrastructure: model calls up to 870 s and four out-of-memory crashes of
+  the model server on the 5.84 GiB sandbox.
+
+**LIMITS**: one model, CPU, two runs, synthetic English data; the dataset
+author also wrote the rules (H32 documented).

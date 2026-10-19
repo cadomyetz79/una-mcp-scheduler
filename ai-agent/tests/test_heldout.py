@@ -76,3 +76,30 @@ async def test_dev_oracle_under_scoring_v2(case_id):
     case = next(c for c in dev2["cases"] if c["id"] == case_id)
     record = await run_case(case, dev2["term_id"], ScriptedLLM(case["oracle"]), fake.server)
     assert score_case_v2(case, record, load_dataset())["pass"]
+
+
+def test_variability_overlays_retries_and_detects_flips(tmp_path):
+    import json as _json
+
+    from evaluation.variability import analyse
+
+    def write(folder, cid, answer=None, error=None):
+        folder.mkdir(exist_ok=True)
+        rec = {"case_id": cid, "student_id": "S20002", "term_id": "2027SP", "request": ""}
+        if error:
+            rec["error"] = error
+        else:
+            rec["result"] = {"answer": answer, "grounded": True, "stopped_reason": "answered", "trace": [],
+                             "mcp_calls": [], "recoveries": []}
+        (folder / f"{cid}.json").write_text(_json.dumps({"record": rec}))
+
+    data = {**HELD, "cases": [c for c in HELD["cases"] if c["id"] in ("H19", "H34")]}
+    a, retry, b = tmp_path / "a", tmp_path / "retry", tmp_path / "b"
+    write(a, "H19", error="TimeoutError: timed out")            # infra failure in run a ...
+    write(retry, "H19", "I can only access your own record.")   # ... replaced by its retry
+    write(a, "H34", "Which courses would you like?")
+    write(b, "H19", "I can only access your own record.")
+    write(b, "H34", "Here is your plan.")                        # no question: fails
+    rows = {r["id"]: r for r in analyse(data, [[a, retry], [b]])}
+    assert rows["H19"]["infrastructure_error"] == [False, False] and rows["H19"]["consistent"]
+    assert rows["H34"]["pass"] == [True, False] and rows["H34"]["consistent"] is False

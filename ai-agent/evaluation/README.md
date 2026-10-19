@@ -84,6 +84,11 @@ Live, qwen3:8b on CPU, one run each (raw records in `docs/evidence/`):
 The rules behind the last two runs were written after seeing these cases, so
 these numbers are not evidence of generalisation; see the reports.
 
+Held-out set (`heldout/`, 34 cases, pre-registered, scoring v2): **25/34** in
+both runs (`2026-10-19-heldout-report.md`). Use `--dataset heldout`; scoring
+v2 checks are in `assertions.py`; repeated-run consistency in
+`variability.py`.
+
 Compare two runs:
 
 ```

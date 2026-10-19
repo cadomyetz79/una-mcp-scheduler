@@ -80,3 +80,15 @@ support). The oracle replay scores 33/34; the exception is H32 (below).
   case, expectation, oracle, prompt or system code changed.
 - `run_eval.py --summarize-only` records `evidence_check` in the metadata
   of older runs (reporting only).
+
+## Results
+
+Run 1 and its repeat (run 2), with infrastructure retries: **25/34 each,
+same pass/fail in 34/34 cases, identical tool calls in 34/34**. No false or
+unsupported academic claims and no hard-constraint violations. Failures:
+prompt injection (H18, H20, H21), invalid argument type (H15), unstated
+conflict (H14), the pre-registered H32, and scoring strictness (H05, H08,
+H34). Full report: `docs/evidence/2026-10-19-heldout-report.md`.
+
+Status: **untouched** — no system change was made in response to these
+results. Using them to change the system turns this into a development set.
