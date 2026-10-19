@@ -148,3 +148,25 @@ async def test_ollama_default_payload_unchanged(monkeypatch):
     monkeypatch.setattr(llm, "_post", lambda p: sent.update(p) or {"message": {}})
     await llm.chat([], [])
     assert "think" not in sent and sent["options"] == {"temperature": 0.0}
+
+
+async def test_compare_separates_system_effect_from_model_variance(tmp_path):
+    import json as _json
+
+    from evaluation.compare import compare, load_run
+
+    wrong = wrong_e02()
+    runs = {}
+    for name, check in (("base", False), ("check", True)):
+        d = tmp_path / name
+        d.mkdir()
+        for case in (wrong, BY_ID["E01"]):
+            record = await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server,
+                                    check_preference_language=check)
+            record["case_id"] = case["id"]
+            (d / f"{case['id']}.json").write_text(_json.dumps({"record": record}))
+        runs[name] = load_run(d, [BY_ID["E02"], BY_ID["E01"]])
+    rows = {r["id"]: r for r in compare([BY_ID["E01"], BY_ID["E02"]], runs["base"], runs["check"])}
+    assert rows["E02"]["change"] == "fixed" and rows["E02"]["cause"] == "system"
+    assert rows["E02"]["model_required_correct"] == [False, False]
+    assert rows["E01"]["change"] == "same"
