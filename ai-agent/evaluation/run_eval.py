@@ -47,6 +47,8 @@ DATASETS = {
     # held-out set (34 cases): development data since the security-hardening work
     "heldout": Path(__file__).resolve().parent / "heldout" / "cases.json",
     "security": Path(__file__).resolve().parent / "security" / "live_cases.json",  # development data
+    # second held-out set, pre-registered for future generalisation claims (heldout2/README.md)
+    "heldout2": Path(__file__).resolve().parent / "heldout2" / "cases.json",
 }
 DEV_V2_OVERLAY = Path(__file__).resolve().with_name("dev_scoring_v2.json")
 SERVER = ROOT / "dev" / "fake_mcp_server.py"

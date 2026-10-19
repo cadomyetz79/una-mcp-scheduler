@@ -227,13 +227,36 @@ def _clauses(text: str) -> list[str]:
     return [c for s in _sentences(text) for c in _CLAUSE.split(s) if c and c.strip()]
 
 
+_NEG_BEFORE = re.compile(r"(\bnot|n['’]t|\bnever|\bno longer|\bcannot)\s+(\w+\s+){0,2}$", re.IGNORECASE)
+_NEGATIVE_FORM = re.compile(r"^(no|without|free of|zero)\b|\bnot\b|n['’]t\b", re.IGNORECASE)
+_ALTERNATIVES = re.compile(r"\b(or|either)\b", re.IGNORECASE)
+
+
+def _asserts_compatibility(clause: str) -> bool:
+    """True if the clause says sections can go together ("don't conflict", "work
+    together"), but not "they don't work together" or "they overlap, so they
+    are not compatible" (found while validating the held-out-2 oracles, N31)."""
+    spans, positive = [], False
+    for m in _COMPAT.finditer(clause):
+        spans.append(m.span())
+        if _NEGATIVE_FORM.search(m.group(0)) or not _NEG_BEFORE.search(clause[: m.start()]):
+            positive = True
+    if not positive:
+        return False
+    # a conflict word outside the "no conflict" phrases: the clause states a conflict
+    return all(any(a <= m.start() < b for a, b in spans) for m in _CONFLICT_WORD.finditer(clause))
+
+
 def combination_claims(answer: str, trace: list) -> list[dict]:
-    """Statements that several sections can be taken together, without planner support."""
+    """Statements that two named sections can be taken together, without planner support.
+
+    Only clauses naming exactly two sections and no alternatives ("SEC1 or
+    SEC2") are read, so lists of options are not mistaken for one combination."""
     supported = _supported_combinations(trace)
     found = []
     for clause in _clauses(answer):
         ids = set(SECTION_ID.findall(clause))
-        if len(ids) < 2 or not _COMPAT.search(clause):
+        if len(ids) != 2 or _ALTERNATIVES.search(clause) or not _asserts_compatibility(clause):
             continue
         if not any(ids <= combo for combo in supported):
             found.append({"sentence": clause.strip()[:300], "section_ids": sorted(ids),
@@ -306,7 +329,8 @@ def unaddressed_requested_issues(answer: str, trace: list) -> list[dict]:
         sids = issue.get("section_ids") or []
         if issue["code"] == "TIME_CONFLICT" and len(sids) == 2:
             a, b = sids
-            said = any(a in w and b in w and _CONFLICT_WORD.search(w) and not _COMPAT.search(w) for w in windows)
+            said = any(a in w and b in w and _CONFLICT_WORD.search(w) and not _asserts_compatibility(w)
+                       for w in windows)
             note = (f"{a} ({desc[a]['course_id']}, {_when(desc[a])}) and {b} ({desc[b]['course_id']}, "
                     f"{_when(desc[b])}) have a time conflict, so you can't take both")
         elif sids:
