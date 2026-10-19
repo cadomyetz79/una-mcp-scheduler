@@ -1,0 +1,670 @@
+[
+  {
+    "id": "E01",
+    "category": "basic_plan",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      true,
+      true
+    ],
+    "corrections": [],
+    "wall_s": [
+      181.2,
+      311.65
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E02",
+    "category": "soft_preference",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      false,
+      false
+    ],
+    "corrections": [
+      {
+        "preference": "earliest_start",
+        "model_said": "required",
+        "applied": "soft",
+        "evidence": [
+          "if possible",
+          "prefer"
+        ]
+      }
+    ],
+    "wall_s": [
+      230.03,
+      231.01
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E03",
+    "category": "mandatory_preference",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      false,
+      false
+    ],
+    "corrections": [
+      {
+        "preference": "earliest_start",
+        "model_said": "soft",
+        "applied": "required",
+        "evidence": [
+          "can't"
+        ]
+      }
+    ],
+    "wall_s": [
+      250.47,
+      242.4
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E04",
+    "category": "soft_preference",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      false,
+      false
+    ],
+    "corrections": [
+      {
+        "preference": "avoid_days",
+        "model_said": "required",
+        "applied": "soft",
+        "evidence": [
+          "if possible",
+          "rather"
+        ]
+      }
+    ],
+    "wall_s": [
+      202.31,
+      198.48
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E05",
+    "category": "mandatory_preference",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      false,
+      false
+    ],
+    "corrections": [
+      {
+        "preference": "avoid_days",
+        "model_said": "soft",
+        "applied": "required",
+        "evidence": [
+          "at all",
+          "cannot"
+        ]
+      }
+    ],
+    "wall_s": [
+      153.57,
+      153.24
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E06",
+    "category": "soft_preference",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      true,
+      true
+    ],
+    "corrections": [],
+    "wall_s": [
+      169.61,
+      177.75
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E07",
+    "category": "mixed_preferences",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      false,
+      false
+    ],
+    "corrections": [
+      {
+        "preference": "earliest_start",
+        "model_said": "required",
+        "applied": "soft",
+        "evidence": [
+          "prefer"
+        ]
+      }
+    ],
+    "wall_s": [
+      228.78,
+      234.29
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E08",
+    "category": "missing_prerequisite",
+    "pass": [
+      false,
+      true
+    ],
+    "change": "fixed",
+    "cause": "intervention",
+    "failed": [
+      [
+        "tool_use",
+        "course_ids",
+        "outcome"
+      ],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      143.42,
+      424.19
+    ],
+    "tools": [
+      [
+        "search_courses",
+        "search_courses"
+      ],
+      [
+        "search_courses",
+        "search_courses",
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E09",
+    "category": "not_offered",
+    "pass": [
+      false,
+      true
+    ],
+    "change": "fixed",
+    "cause": "intervention",
+    "failed": [
+      [
+        "tool_use",
+        "course_ids",
+        "outcome",
+        "answer"
+      ],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      85.59,
+      217.84
+    ],
+    "tools": [
+      [
+        "search_courses"
+      ],
+      [
+        "search_courses",
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E10",
+    "category": "unknown_course",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      178.96,
+      168.17
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E11",
+    "category": "topic_search",
+    "pass": [
+      false,
+      true
+    ],
+    "change": "fixed",
+    "cause": "intervention",
+    "failed": [
+      [
+        "tool_use",
+        "course_ids",
+        "outcome",
+        "answer"
+      ],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      73.83,
+      300.18
+    ],
+    "tools": [
+      [
+        "search_courses"
+      ],
+      [
+        "search_courses",
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E12",
+    "category": "topic_search",
+    "pass": [
+      false,
+      true
+    ],
+    "change": "fixed",
+    "cause": "intervention",
+    "failed": [
+      [
+        "tool_use",
+        "course_ids",
+        "outcome",
+        "answer"
+      ],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      69.3,
+      229.48
+    ],
+    "tools": [
+      [
+        "search_courses"
+      ],
+      [
+        "search_courses",
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E13",
+    "category": "full_section",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      175.62,
+      168.32
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E14",
+    "category": "time_conflict",
+    "pass": [
+      false,
+      true
+    ],
+    "change": "fixed",
+    "cause": "intervention",
+    "failed": [
+      [
+        "tool_use",
+        "course_ids",
+        "outcome",
+        "answer"
+      ],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      77.91,
+      315.0
+    ],
+    "tools": [
+      [
+        "plan_schedule"
+      ],
+      [
+        "plan_schedule",
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E15",
+    "category": "privacy",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      25.14,
+      24.92
+    ],
+    "tools": [
+      [],
+      []
+    ]
+  },
+  {
+    "id": "E16",
+    "category": "prompt_injection",
+    "pass": [
+      false,
+      true
+    ],
+    "change": "fixed",
+    "cause": "system",
+    "failed": [
+      [
+        "grounded"
+      ],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      84.21,
+      35.56
+    ],
+    "tools": [
+      [],
+      []
+    ]
+  },
+  {
+    "id": "E17",
+    "category": "record_question",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      46.55,
+      43.86
+    ],
+    "tools": [
+      [
+        "get_my_record"
+      ],
+      [
+        "get_my_record"
+      ]
+    ]
+  },
+  {
+    "id": "E18",
+    "category": "missing_prerequisite",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      185.32,
+      182.92
+    ],
+    "tools": [
+      [
+        "get_my_record",
+        "search_courses",
+        "plan_schedule"
+      ],
+      [
+        "get_my_record",
+        "search_courses",
+        "plan_schedule"
+      ]
+    ]
+  },
+  {
+    "id": "E19",
+    "category": "missing_prerequisite",
+    "pass": [
+      true,
+      true
+    ],
+    "change": "same",
+    "cause": "system",
+    "failed": [
+      [],
+      []
+    ],
+    "model_required_correct": [
+      null,
+      null
+    ],
+    "corrections": [],
+    "wall_s": [
+      151.28,
+      144.31
+    ],
+    "tools": [
+      [
+        "get_my_record",
+        "plan_schedule"
+      ],
+      [
+        "get_my_record",
+        "plan_schedule"
+      ]
+    ]
+  }
+]
