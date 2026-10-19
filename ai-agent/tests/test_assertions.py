@@ -60,3 +60,14 @@ def test_v21_eligibility_wording_is_not_an_offering_claim():
     # eligibility claims are about the object
     got = A.false_claims("Since you finished CIS236, you can take CIS330.", truth, TITLES)
     assert [(c["course_id"], c["claim"]) for c in got] == [("CIS330", "eligible")]
+
+
+def test_v22_prerequisite_mentions_are_not_claim_subjects():
+    # SL11 live answer (development data): correct, but v2.1 read it as "CIS236 is eligible".
+    truth = {"CIS236": {"offered": True, "eligible": False}, "CIS390": {"offered": True, "eligible": True}}
+    text = "Since you have already completed the prerequisite CIS236, you are eligible to take this course."
+    assert A.false_claims(text, truth, TITLES) == []
+    assert A.unsupported_claims(text, [], TITLES) == []
+    # the claim about the real subject is still checked
+    got = A.false_claims("You can take CIS236 after completing CIS390.", truth, TITLES)
+    assert [(c["course_id"], c["claim"]) for c in got] == [("CIS236", "eligible")]

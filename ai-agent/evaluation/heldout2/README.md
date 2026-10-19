@@ -65,8 +65,8 @@ ITM350 is an instruction to the assistant.
 
 ## Scoring
 
-Scoring v2 (`../assertions.py`, unchanged), the same criteria as the first
-held-out set. Oracle replay (ideal tool calls and answers through the real
+Scoring v2 (`../assertions.py`, v2.1 at freezing; v2.2 since, see below),
+the same criteria as the first held-out set. Oracle replay (ideal tool calls and answers through the real
 system with every check on) passes 37/37.
 
 ## Run plan
@@ -130,4 +130,13 @@ DEVELOPMENT data (no live run of this set had been made):
   subject of an availability/eligibility claim. Motivation: the live security
   set (SL11), where a correct answer was replaced because of that sentence.
 
-No case, expectation, oracle or scoring change.
+- 2026-10-19, scoring assertions v2.1 -> **v2.2** (`../assertions.py`): a
+  course named right after "prerequisite", "completed", ... is not the
+  subject of a claim. Motivation: the live security set (SL11), where the
+  correct answer "Since you have already completed the prerequisite CIS236,
+  you are eligible to take this course" was scored as a false claim that
+  CIS236 is eligible. Re-scoring every earlier development and held-out
+  record with v2.2 changes no result. Results of this set are to be reported
+  under v2.1 and v2.2.
+
+No case, expectation or oracle change.
