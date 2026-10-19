@@ -1,4 +1,11 @@
-"""Answer-level assertions for scoring v2 (evaluation only).
+"""Answer-level assertions for scoring v2 (evaluation only). Current: v2.1.
+
+v2.1 (2026-10-19, after freezing, found on the DEVELOPMENT set E19 before any
+held-out result was inspected): "X is not available for you because it
+requires Y" is an eligibility statement, not "not offered"; and a claim is
+attributed to the course it is about (subject before an availability phrase,
+object after "you can take"), not to every course in the clause. The frozen
+v2.0 is in commit 6429394.
 
 Written separately from agent/evidence.py on purpose: the system's own
 runtime rules must not grade themselves. Nothing here is imported by the
@@ -41,6 +48,7 @@ NO_CONFLICT = re.compile(
 REJECT = re.compile(NEG.pattern + r"|" + CONFLICT.pattern + r"|\b(full|unavailable|invalid|closed|instead)\b", re.I)
 NOT_OFFERED = re.compile(
     r"\b(not|isn['’]t|aren['’]t|won['’]t be|will not be)\s+(being\s+)?(offered|available|scheduled)\b"
+    r"(?!\s+(for|to)\s+you)(?![^.]*\b(because|since|until|unless)\b[^.]*\b(requires?|prerequisites?|completed?)\b)"
     # "no section" counts only when it is not narrowed by a condition:
     # "no open section that starts at 10am" / "no section off Mondays" are about
     # preferences, not about the course being offered.
@@ -87,9 +95,11 @@ def availability(answer: str, course: str, expected: str, titles: dict[str, str]
         for clause in _CLAUSE.split(s):
             if not clause or course not in _refs(clause, titles):
                 continue
-            if NOT_OFFERED.search(clause):
+            m_not, m_yes = NOT_OFFERED.search(clause), OFFERED.search(clause)
+            if m_not and course in _about(clause, m_not, titles, before=True):
                 says_not = True
-            elif OFFERED.search(clause) or (SECTION.search(clause) and not NEG.search(clause)):
+            elif (m_yes and course in _about(clause, m_yes, titles, before=True)) or \
+                    (SECTION.search(clause) and not NEG.search(clause)):
                 says_yes = True
     return (says_not and not says_yes) if expected == "not_offered" else (says_yes and not says_not)
 
@@ -125,22 +135,30 @@ def recommends_option(answer: str, options: list[list[str]]) -> bool:
     return any(all(sid in answer for sid in option) for option in options)
 
 
+def _about(clause: str, match: re.Match, titles: dict[str, str], before: bool) -> set[str]:
+    """Courses a claim is about: the subject before the phrase (availability) or the
+    object after it (eligibility); all courses in the clause if that side has none."""
+    part = clause[: match.start()] if before else clause[match.start():]
+    return _refs(part, titles) or _refs(clause, titles)
+
+
 def _claims(answer: str, titles: dict[str, str]) -> list[tuple[str, str, str]]:
     """(course, kind, clause) with kind in offered / not_offered / eligible."""
     out = []
     for s in sentences(answer):
         for clause in _CLAUSE.split(s):
-            if not clause:
+            if not clause or not _refs(clause, titles):
                 continue
-            refs = _refs(clause, titles)
-            if not refs:
-                continue
-            if NOT_OFFERED.search(clause):
-                out += [(c, "not_offered", clause) for c in refs]
-            elif OFFERED.search(clause) and not NEG.search(clause):
-                out += [(c, "offered", clause) for c in refs]
-            if ELIGIBLE.search(clause) and not NEG.search(clause):
-                out += [(c, "eligible", clause) for c in refs]
+            m = NOT_OFFERED.search(clause)
+            if m:
+                out += [(c, "not_offered", clause) for c in _about(clause, m, titles, before=True)]
+            else:
+                m = OFFERED.search(clause)
+                if m and not NEG.search(clause):
+                    out += [(c, "offered", clause) for c in _about(clause, m, titles, before=True)]
+            m = ELIGIBLE.search(clause)
+            if m and not NEG.search(clause):
+                out += [(c, "eligible", clause) for c in _about(clause, m, titles, before=False)]
     return out
 
 

@@ -240,8 +240,9 @@ def summarize(cases: list[dict], scores: list[dict], records: list[dict], ds=Non
 
 # ---------------------------------------------------------------- scoring v2
 
+ASSERTIONS_VERSION = "2.1"
 SCORING_V2_NOTE = (
-    "v2 = all v1 criteria + structured answer assertions (evaluation/assertions.py): "
+    "v2.1 (assertions.py; v2.0 frozen in commit 6429394) = all v1 criteria + structured answer assertions (evaluation/assertions.py): "
     "conflict, availability, ineligible, clarification, sections_ok, recommends_option, "
     "must_attempt, and academic_claims (no statement contradicting the dataset and no "
     "positive availability/eligibility statement without plan_schedule support)."
@@ -306,6 +307,7 @@ def summarize_v2(cases: list[dict], scores: list[dict], records: list[dict], ds)
     tokens_in = sum((c.get("prompt_tokens") or 0) for r in records for c in r.get("llm_calls", []))
     tokens_out = sum((c.get("output_tokens") or 0) for r in records for c in r.get("llm_calls", []))
     s["scoring_version"] = 2
+    s["assertions_version"] = ASSERTIONS_VERSION
     s["scoring_note"] = SCORING_V2_NOTE
     s["false_claims"] = {"count": sum(len(x.get("extra", {}).get("false_claims", [])) for x in scores),
                          "cases": [x["id"] for x in scores if x.get("extra", {}).get("false_claims")]}

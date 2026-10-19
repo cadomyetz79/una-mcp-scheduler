@@ -224,6 +224,7 @@ async def main() -> None:
                 "rescored_with": f"current evaluation/scoring.py, scoring v{data['scoring_version']}",
                 "scoring_version": data["scoring_version"]}
         meta.setdefault("preference_check", not a.no_preference_check)
+        meta.setdefault("evidence_check", not a.no_evidence_check)
     summary = (summarize_v2(data["cases"], scores, records, ds) if v2
                else summarize(data["cases"], scores, records, ds))
     summary["cases_missing"] = [c["id"] for c in data["cases"]

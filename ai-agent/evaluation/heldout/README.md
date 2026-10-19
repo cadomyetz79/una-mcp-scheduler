@@ -70,4 +70,13 @@ support). The oracle replay scores 33/34; the exception is H32 (below).
 
 ## Changes after freezing
 
-None yet.
+- 2026-10-19 04:22 CDT, scoring assertions v2.0 → **v2.1** (`../assertions.py`).
+  Found while rescoring the DEVELOPMENT runs (E19), when no held-out case of
+  run 1 had finished (its output folder was still empty): "X is not
+  available for you because it requires Y" was read as "X is not offered",
+  and a claim was attributed to every course in the clause. v2.1 treats that
+  wording as eligibility and attributes a claim to the course it is about.
+  Held-out results are reported under both the frozen v2.0 and v2.1. No
+  case, expectation, oracle, prompt or system code changed.
+- `run_eval.py --summarize-only` records `evidence_check` in the metadata
+  of older runs (reporting only).

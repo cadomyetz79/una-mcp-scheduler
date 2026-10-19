@@ -47,3 +47,16 @@ def test_sections_ok_and_clarification():
     assert not ok and bad == ["SEC9999"]
     assert A.clarification("Which courses do you want?") and not A.clarification("Here is your plan.")
     assert not A.clarification("Which one: CIS225?", ["CIS225", "CIS330"], 2)
+
+
+def test_v21_eligibility_wording_is_not_an_offering_claim():
+    truth = {"CIS410": {"offered": True, "eligible": False}, "CIS330": {"offered": False, "eligible": False}}
+    text = ("The course CIS410 is not available for you next spring because it requires CIS330 "
+            "as a prerequisite, which you have not completed.")
+    assert A.false_claims(text, truth, TITLES) == []
+    assert A.unsupported_claims(text, [], TITLES) == []
+    # a real "not offered" claim is still caught, and only for its subject
+    assert [c["course_id"] for c in A.false_claims("CIS410 is not offered, unlike CIS330.", truth, TITLES)] == ["CIS410"]
+    # eligibility claims are about the object
+    got = A.false_claims("Since you finished CIS236, you can take CIS330.", truth, TITLES)
+    assert [(c["course_id"], c["claim"]) for c in got] == [("CIS330", "eligible")]
