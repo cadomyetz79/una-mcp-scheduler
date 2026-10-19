@@ -14,7 +14,11 @@ ai-agent/
 │   ├── banner_tools.py # typed MCP client wrapper; TOOL_NAMES maps to server tool names
 │   ├── planner.py      # deterministic schedule generation over MCP data
 │   ├── llm.py          # LLM backends: OllamaLLM (local, free) and ScriptedLLM (tests)
-│   └── assistant.py    # LLM tool-calling loop + guardrails
+│   ├── assistant.py    # LLM tool-calling loop + guardrails
+│   ├── evidence.py     # deterministic evidence rules for answers (claims, sections, named sections)
+│   ├── preference_language.py  # how strongly the student states each time/day wish
+│   ├── security.py     # trust boundaries: input inspection, tool-data filter, output guard
+│   └── safe_answer.py  # deterministic answers when the model's answer cannot be shown
 ├── prompts/
 │   └── system.md       # system prompt
 ├── dev/
@@ -38,7 +42,8 @@ live-model evaluation run.
 ```
 student request ──> agent/assistant.py  (LLM: interprets + explains)
                           │ tools: get_my_record, search_courses, plan_schedule
-                          │ guardrails: bound identity, arg checks, grounding, step limit
+                          │ guardrails: bound identity, arg + ID-schema checks, grounding,
+                          │ evidence rules, trust boundaries + output guard, step limit
                           ▼
                     agent/planner.py ──── validate_schedule()  (deterministic)
                           │
