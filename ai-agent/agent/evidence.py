@@ -18,7 +18,8 @@ answer is backed by it. No model is involved.
    eligibility for a course ("is offered", "is available", "you can take",
    "you are eligible") must be backed by plan_schedule: a positive claim needs
    the course in a returned option; a negative claim needs the course to have
-   been planned at all. The course catalog (search_courses) is NOT evidence
+   been planned at all. A course named only by its title is recognised if a
+   search_courses result in this conversation returned that title. The course catalog (search_courses) is NOT evidence
    that a course is offered this term or that this student may take it.
 
 3. section_mentions(): section IDs in the answer are grounded if they come
@@ -124,13 +125,27 @@ def missing_plan_evidence(need: dict | None, trace: list) -> list[str]:
     return [c for c in need["course_ids"] if c not in planned]
 
 
+def _titles_from_trace(trace: list) -> dict[str, str]:
+    """lower-case course title -> course ID, for courses returned by search_courses."""
+    out = {}
+    for t in trace:
+        if _get(t, "tool") == "search_courses" and _get(t, "ok") and isinstance(_get(t, "result"), list):
+            for row in _get(t, "result"):
+                if row.get("title"):
+                    out[row["title"].lower()] = row["course_id"]
+    return out
+
+
 def unsupported_claims(answer: str, trace: list) -> list[dict]:
     planned = planned_courses(trace)
+    titles = _titles_from_trace(trace)
     claims = []
     for sentence in _sentences(answer):
         if not _CLAIM.search(sentence):
             continue
         ids = course_ids(sentence)
+        low = sentence.lower()
+        ids += [cid for title, cid in titles.items() if title in low and cid not in ids]
         if not ids:
             continue
         negative = bool(_NEGATION.search(sentence))
