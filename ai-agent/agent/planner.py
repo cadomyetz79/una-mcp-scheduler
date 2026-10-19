@@ -3,10 +3,15 @@
 Given a student, a term and the courses they want, the planner:
   1. fetches everything it needs through MCP (BannerTools),
   2. drops courses the student cannot take (prerequisites, already completed,
-     no sections this term) and sections that are full or break a stated
+     no sections this term) and sections that are full or break a REQUIRED
      preference,
-  3. tries every combination of the remaining sections, and
-  4. keeps only combinations that validate_schedule() accepts.
+  3. tries every combination of the remaining sections,
+  4. keeps only combinations that validate_schedule() accepts, and
+  5. ranks the valid ones: fewer violated soft preferences first.
+
+Hard constraints (validate_schedule, full sections, required preferences)
+decide validity. Soft preferences never make a schedule invalid; they only
+order the valid ones and are reported on each option.
 
 No LLM is involved here. Later the LLM's job is to turn a student's words
 ("no classes before 10") into these arguments, and to explain the result.
@@ -30,23 +35,52 @@ from .banner_tools import BannerTools, ToolCallError
 MAX_COMBINATIONS = 10_000  # safety cap on brute-force enumeration
 
 
+PREFERENCE_NAMES = ("earliest_start", "latest_end", "avoid_days")
+
+
 @dataclass
 class Preferences:
-    earliest_start: str | None = None  # "HH:MM"; no meeting may start before this
-    latest_end: str | None = None  # "HH:MM"; no meeting may end after this
+    earliest_start: str | None = None  # "HH:MM"; meetings should not start before this
+    latest_end: str | None = None  # "HH:MM"; meetings should not end after this
     avoid_days: tuple[str, ...] = ()  # e.g. ("FRI",)
+    # Which of the preferences above are MANDATORY (hard). Anything not listed
+    # is soft: it ranks valid schedules but never invalidates one.
+    # Default = all mandatory, which is the behaviour before ranking existed.
+    required: tuple[str, ...] = PREFERENCE_NAMES
 
-    def allows(self, section: Section) -> bool:
+    def violations(self, section: Section) -> list[dict]:
+        """Every way this section misses a stated preference (hard or soft)."""
         start = parse_time(self.earliest_start) if self.earliest_start else None
         end = parse_time(self.latest_end) if self.latest_end else None
+        found: list[dict] = []
         for m in section.meetings:
             if start is not None and m.start < start:
-                return False
+                found.append(self._violation(section, "earliest_start", start_gap=start - m.start))
             if end is not None and m.end > end:
-                return False
-            if set(m.days) & set(self.avoid_days):
-                return False
-        return True
+                found.append(self._violation(section, "latest_end", end_gap=m.end - end))
+            hit = sorted(set(m.days) & set(self.avoid_days))
+            if hit:
+                found.append(self._violation(section, "avoid_days", days=hit))
+        return found
+
+    @staticmethod
+    def _violation(section: Section, preference: str, **info) -> dict:
+        excess = info.get("start_gap", info.get("end_gap", 0))
+        detail = {
+            "earliest_start": f"starts {excess} min before the requested time",
+            "latest_end": f"ends {excess} min after the requested time",
+            "avoid_days": f"meets on {', '.join(info.get('days', []))}",
+        }[preference]
+        return {
+            "section_id": section.section_id,
+            "preference": preference,
+            "detail": detail,
+            "excess_minutes": excess,
+        }
+
+    def allows(self, section: Section) -> bool:
+        """False if the section breaks a REQUIRED preference."""
+        return not any(v["preference"] in self.required for v in self.violations(section))
 
 
 @dataclass
@@ -65,6 +99,11 @@ class PlanResult:
     excluded: list[Excluded] = field(default_factory=list)
     combinations_checked: int = 0
     rejection_counts: dict[str, int] = field(default_factory=dict)
+    # Honest reporting of limits: how many valid schedules exist vs. returned,
+    # and whether the brute-force search was cut off by MAX_COMBINATIONS.
+    total_valid_options: int = 0
+    options_truncated: bool = False
+    search_capped: bool = False
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -148,23 +187,42 @@ async def plan_schedules(
         return result
 
     rejections: Counter[str] = Counter()
-    combos = product(*candidates.values())
-    for combo in islice(combos, MAX_COMBINATIONS):
+    space = 1
+    for sections in candidates.values():
+        space *= len(sections)
+    result.search_capped = space > MAX_COMBINATIONS
+
+    valid: list[dict] = []
+    for combo in islice(product(*candidates.values()), MAX_COMBINATIONS):
         result.combinations_checked += 1
         ids = [s.section_id for s in combo]
         check = validate_schedule(student, ids, term_id, all_sections, courses)
         if check.valid:
-            result.options.append(
+            misses = [v for sec in combo for v in prefs.violations(sec)]
+            valid.append(
                 {
                     "section_ids": ids,
                     "total_credit_hours": check.total_credit_hours,
+                    "meets_all_preferences": not misses,
+                    "preference_violations": misses,
                     "sections": [_describe(s) for s in combo],
                 }
             )
-            if len(result.options) >= max_options:
-                break
         else:
             rejections.update(i.code for i in check.issues)
 
+    # Rank: fewest missed preferences, then least total minutes missed.
+    # sorted() is stable, so ties keep enumeration order (deterministic).
+    valid.sort(
+        key=lambda o: (
+            len(o["preference_violations"]),
+            sum(v["excess_minutes"] for v in o["preference_violations"]),
+        )
+    )
+    for rank, option in enumerate(valid, start=1):
+        option["rank"] = rank
+    result.total_valid_options = len(valid)
+    result.options_truncated = len(valid) > max_options
+    result.options = valid[:max_options]
     result.rejection_counts = dict(rejections)
     return result

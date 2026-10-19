@@ -186,8 +186,8 @@ python -m pytest -v
 **OPEN QUESTION**
 - If no combination of all requested courses works, should the agent offer
   partial schedules (e.g. best 2 of 3 courses)?
-- Should preferences like "no Fridays" be hard filters (current behavior)
-  or soft rankings?
+- ~~Should preferences like "no Fridays" be hard filters or soft rankings?~~
+  Resolved by the 2026-10-19 entry below: both, chosen per preference.
 
 ### 2026-10-05 — Continuous integration (GitHub Actions)
 
@@ -233,3 +233,49 @@ python -m pytest -v
   evidence (tool use, grounding rate, latency) for the paper.
 - Does the team want Ollama (local, free) or a hosted API for the final
   system?
+
+### 2026-10-19 — Soft preferences and ranking (branch `feature/soft-preferences-ranking`)
+
+Audit baseline: `main` @ `35f1b12`, rerun in the cloud: 41 passed, 1 skipped.
+Gap found against the Workstream 3 requirements: every preference was a hard
+filter and options were not ranked; a schedule that missed a wish was
+silently not offered.
+
+**CONFIRMED (tests run in the cloud, Linux, Python 3.13)**
+- `Preferences.required` lists which of `earliest_start`, `latest_end`,
+  `avoid_days` are mandatory. Required ones still filter sections (so the
+  old behaviour is kept when `required` is left at its default). Anything
+  else is soft: it never invalidates a schedule.
+- Valid schedules are ranked by number of missed soft preferences, then by
+  total minutes missed; ties keep enumeration order. Each option carries
+  `rank`, `meets_all_preferences` and `preference_violations`.
+- Ranking now happens over all valid combinations before cutting to
+  `max_options` (before, the first 5 found were returned). The result reports
+  `total_valid_options`, `options_truncated` and `search_capped` (search hit
+  `MAX_COMBINATIONS`).
+- Assistant tool `plan_schedule` gained `required_preferences`; its default
+  is soft. The system prompt tells the model to use it only for "must/can't".
+  Grounding is unchanged (section IDs still must come from an option).
+- 52 passed, 1 skipped (+11 tests: `tests/test_ranking.py`, 2 new and 1
+  changed in `tests/test_assistant.py`). Raw output:
+  `docs/evidence/2026-10-19-ai-agent-soft-prefs-pytest-cloud.txt`; soft demo
+  (`--earliest 10:00 --soft`): `docs/evidence/2026-10-19-ai-agent-soft-prefs-demo.json`.
+
+**Behaviour change (deliberate)**: through the assistant, `earliest_start`
+etc. are now soft unless listed in `required_preferences`.
+`test_preferences_are_passed_to_planner` was renamed
+`test_required_preferences_are_hard_filters` and passes `required_preferences`.
+
+**NOT VERIFIED**
+- Not run on Windows or in GitHub Actions yet (the branch is not pushed).
+- Not run with a real LLM: whether qwen3 picks `required_preferences`
+  correctly is untested.
+
+**WORKING ASSUMPTION**
+- Ranking order (count of misses, then minutes) is a simple default, not a
+  team decision. `avoid_days` misses count 1 and add 0 minutes.
+- One `required_preferences` list applies to the whole request.
+
+**OPEN QUESTION**
+- Should the student's wishes be weighted (for example "no Fridays" matters
+  more than "after 10")? Current ranking treats each miss equally.

@@ -20,7 +20,7 @@ from mcp import Client  # noqa: E402
 from mcp.client.stdio import StdioServerParameters  # noqa: E402
 
 from agent.banner_tools import BannerTools  # noqa: E402
-from agent.planner import Preferences, plan_schedules  # noqa: E402
+from agent.planner import PREFERENCE_NAMES, Preferences, plan_schedules  # noqa: E402
 
 SERVER = Path(__file__).resolve().with_name("fake_mcp_server.py")
 
@@ -33,6 +33,8 @@ async def main() -> None:
     p.add_argument("--earliest", help="HH:MM, no class before this")
     p.add_argument("--latest", help="HH:MM, no class after this")
     p.add_argument("--avoid", nargs="*", default=[], help="days, e.g. FRI")
+    p.add_argument("--soft", action="store_true",
+                   help="treat the preferences as soft: rank schedules instead of filtering")
     a = p.parse_args()
 
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)])
@@ -40,7 +42,7 @@ async def main() -> None:
         tools = BannerTools(client)
         plan = await plan_schedules(
             tools, a.student_id, a.term_id, a.course_ids,
-            Preferences(a.earliest, a.latest, tuple(a.avoid)),
+            Preferences(a.earliest, a.latest, tuple(a.avoid), required=() if a.soft else PREFERENCE_NAMES),
         )
     print(json.dumps({"plan": plan.to_dict(), "mcp_calls": tools.calls}, indent=2))
 

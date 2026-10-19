@@ -31,7 +31,7 @@ from scheduling.models import VALID_DAYS
 
 from .banner_tools import BannerTools, ToolCallError
 from .llm import LLM
-from .planner import Preferences, plan_schedules
+from .planner import PREFERENCE_NAMES, Preferences, plan_schedules
 
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "system.md"
 
@@ -86,6 +86,14 @@ TOOL_SPECS = [
                         "type": "array",
                         "items": {"type": "string", "enum": sorted(VALID_DAYS)},
                         "description": "Days to keep free, e.g. ['FRI'].",
+                    },
+                    "required_preferences": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": list(PREFERENCE_NAMES)},
+                        "description": (
+                            "Which of earliest_start, latest_end, avoid_days are MANDATORY because the "
+                            "student said they must/can't. Leave out for ordinary wishes: those only rank the options."
+                        ),
                     },
                 },
                 "required": ["course_ids"],
@@ -178,6 +186,7 @@ class SchedulingAssistant:
         earliest_start: str | None = None,
         latest_end: str | None = None,
         avoid_days: list[str] | None = None,
+        required_preferences: list[str] | None = None,
     ) -> dict:
         if (
             not isinstance(course_ids, list)
@@ -195,12 +204,16 @@ class SchedulingAssistant:
         if bad:
             raise ToolArgumentError(f"avoid_days has invalid values {bad}; use {sorted(VALID_DAYS)}.")
 
+        required = required_preferences or []
+        if not isinstance(required, list) or any(r not in PREFERENCE_NAMES for r in required):
+            raise ToolArgumentError(f"required_preferences must be a list of {list(PREFERENCE_NAMES)}.")
+
         plan = await plan_schedules(
             self.tools,
             self.student_id,
             self.term_id,
             [c.strip().upper() for c in course_ids],
-            Preferences(earliest_start or None, latest_end or None, tuple(days)),
+            Preferences(earliest_start or None, latest_end or None, tuple(days), tuple(required)),
         )
         result = plan.to_dict()
         result.pop("student_id", None)
