@@ -1,0 +1,213 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T14:51:21+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 900.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H33",
+    "request": "It's fine if I have class on Fridays, but ideally I'd finish by 3pm. Plan CIS376.",
+    "student_id": "S20001",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "Here is a valid schedule option for you:\n\n- **Course:** CIS376  \n- **Section:** SEC1001  \n- **Days:** Monday and Wednesday  \n- **Time:** 9:30 AM to 10:45 AM  \n- **Location:** Building A 101  \n- **Credit Hours:** 3  \n\nThis schedule meets your preference to finish by 3 PM. Let me know if you'd like to add more courses or adjust anything!",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS376"
+            ],
+            "latest_end": "15:00"
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS376"
+            ],
+            "options": [
+              {
+                "section_ids": [
+                  "SEC1001"
+                ],
+                "total_credit_hours": 3,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC1001",
+                    "course_id": "CIS376",
+                    "modality": "in_person",
+                    "seats_available": 6,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "09:30",
+                        "end": "10:45",
+                        "location": "Building A 101"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 1
+              }
+            ],
+            "excluded": [],
+            "combinations_checked": 1,
+            "rejection_counts": {},
+            "total_valid_options": 1,
+            "options_truncated": false,
+            "search_capped": false,
+            "preferences_applied": {
+              "earliest_start": null,
+              "latest_end": "15:00",
+              "avoid_days": [],
+              "required": []
+            }
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS376"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS376",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": []
+    },
+    "wall_s": 141.05,
+    "llm_calls": [
+      {
+        "wall_s": 27.19,
+        "prompt_tokens": 986,
+        "output_tokens": 36,
+        "prompt_s": 7.57,
+        "output_s": 19.59,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 111.97,
+        "prompt_tokens": 1258,
+        "output_tokens": 102,
+        "prompt_s": 49.24,
+        "output_s": 62.69,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "H33",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS376'] want=['CIS376']"
+      },
+      "preferences": {
+        "pass": true,
+        "detail": "got={'latest_end': '15:00'} want={'latest_end': '15:00'}"
+      },
+      "required": {
+        "pass": true,
+        "detail": "applied=[] model=[] want=[]"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[['SEC1001']] want=[['SEC1001']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "recommends_option": {
+        "pass": true,
+        "detail": "answer must name every section of at least one valid option"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "model_required_correct": true,
+      "corrections": [],
+      "invalid_tool_calls": 0,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

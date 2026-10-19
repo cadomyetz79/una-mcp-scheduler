@@ -1,0 +1,226 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T14:51:21+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 900.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H25",
+    "request": "Can I jump straight into Advanced Networking?",
+    "student_id": "S20004",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "You cannot take CIS376 yet because you haven't completed the prerequisite course, CIS330. To proceed, you'll need to take CIS330 first. Would you like help planning a schedule that includes CIS330?",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 4,
+      "trace": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "Advanced Networking"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS376",
+              "title": "Advanced Networking",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS330"
+              ],
+              "corequisites": []
+            }
+          ],
+          "by": "model"
+        },
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS376"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS376"
+            ],
+            "options": [],
+            "excluded": [
+              {
+                "course_id": "CIS376",
+                "code": "MISSING_PREREQUISITE",
+                "reason": "CIS376 requires CIS330."
+              }
+            ],
+            "combinations_checked": 0,
+            "rejection_counts": {},
+            "total_valid_options": 0,
+            "options_truncated": false,
+            "search_capped": false,
+            "preferences_applied": {
+              "earliest_start": null,
+              "latest_end": null,
+              "avoid_days": [],
+              "required": []
+            }
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "Advanced Networking",
+            "subject": ""
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20004"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20004"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS376"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS376",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": []
+    },
+    "wall_s": 195.58,
+    "llm_calls": [
+      {
+        "wall_s": 17.17,
+        "prompt_tokens": 968,
+        "output_tokens": 21,
+        "prompt_s": 4.58,
+        "output_s": 12.29,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 51.2,
+        "prompt_tokens": 1043,
+        "output_tokens": 58,
+        "prompt_s": 15.2,
+        "output_s": 35.93,
+        "load_s": 0.01,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      },
+      {
+        "wall_s": 57.28,
+        "prompt_tokens": 1180,
+        "output_tokens": 26,
+        "prompt_s": 40.95,
+        "output_s": 16.29,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 68.39,
+        "prompt_tokens": 1349,
+        "output_tokens": 51,
+        "prompt_s": 35.65,
+        "output_s": 32.71,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "H25",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule', 'search_courses']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS376'] want=['CIS376']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[] want=[] excluded={'CIS376': 'MISSING_PREREQUISITE'} want={'CIS376': 'MISSING_PREREQUISITE'}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "ineligible:CIS376": {
+        "pass": true,
+        "detail": "must say CIS376 needs ['CIS330']"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

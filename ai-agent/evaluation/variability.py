@@ -2,6 +2,10 @@
 
     python evaluation/variability.py --dataset heldout RUN_A RUN_B [RUN_C ...] --labels r1 r2 --out var.md
 
+A run may be given as BASE:RETRY1:RETRY2 — a case file in a later folder
+replaces the one in an earlier folder (used for infrastructure retries; the
+original folders are not modified).
+
 For every case present in all runs it reports, per run: pass/fail (rescored
 with the dataset's current scorer), whether the run ended with an
 infrastructure error, the model's tool calls and the answer. A case is
@@ -31,15 +35,20 @@ def _calls(record: dict) -> list:
             for t in (record.get("result") or {}).get("trace", [])]
 
 
-def analyse(data: dict, runs: list[Path]) -> list[dict]:
+def _find(run: list[Path], case_id: str) -> Path | None:
+    hits = [d / f"{case_id}.json" for d in run if (d / f"{case_id}.json").exists()]
+    return hits[-1] if hits else None
+
+
+def analyse(data: dict, runs: list[list[Path]]) -> list[dict]:
     v2 = data.get("scoring_version", 1) >= 2
     ds = load_dataset(data_dir_of(data))
     rows = []
     for case in data["cases"]:
         recs = []
         for run in runs:
-            f = run / f"{case['id']}.json"
-            recs.append(json.loads(f.read_text(encoding="utf-8"))["record"] if f.exists() else None)
+            f = _find(run, case["id"])
+            recs.append(json.loads(f.read_text(encoding="utf-8"))["record"] if f else None)
         if any(r is None for r in recs):
             rows.append({"id": case["id"], "missing": [str(r) for r, x in zip(runs, recs) if x is None]})
             continue
@@ -101,7 +110,7 @@ def main() -> None:
     p.add_argument("--out")
     a = p.parse_args()
     labels = a.labels or [f"run{i + 1}" for i in range(len(a.runs))]
-    rows = analyse(load_cases(dataset=a.dataset), [Path(r) for r in a.runs])
+    rows = analyse(load_cases(dataset=a.dataset), [[Path(p) for p in r.split(":")] for r in a.runs])
     md = to_markdown(rows, labels)
     print(md)
     if a.out:
