@@ -140,10 +140,12 @@ async def main() -> None:
                                                num_ctx=a.num_ctx)
 
     records, scores = [], []
+    saved_meta = None
     for case in data["cases"]:
         path = out / f"{case['id']}.json"
         if (a.resume or a.summarize_only) and path.exists():
             saved = json.loads(path.read_text(encoding="utf-8"))
+            saved_meta = saved_meta or saved.get("meta")
             record = saved["record"]
             score = score_case(case, record)  # rescored with the current scorer
             records.append(record)
@@ -164,10 +166,16 @@ async def main() -> None:
         failed = [k for k, c in score["checks"].items() if not c["pass"]]
         print(f"{case['id']} pass={score['pass']} wall={record['wall_s']}s failed={failed}", flush=True)
 
+    if a.summarize_only and saved_meta:
+        # Keep the settings of the run that produced the records; note the rescoring.
+        meta = {**saved_meta, "rescored_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "rescored_with": "current evaluation/scoring.py"}
+        meta.setdefault("preference_check", not a.no_preference_check)
     summary = summarize(data["cases"], scores, records, load_dataset())
     summary["cases_missing"] = [c["id"] for c in data["cases"]
                                 if c["id"] not in {r["case_id"] for r in records}]
-    meta["finished_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    if not a.summarize_only:
+        meta["finished_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     (out / "summary.json").write_text(json.dumps({"meta": meta, "summary": summary}, indent=2),
                                       encoding="utf-8")
     write_markdown(out / "summary.md", meta, summary, scores, records)

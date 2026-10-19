@@ -1,0 +1,194 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T06:06:46+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16",
+    "rescored_utc": "2026-10-19T06:49:05+00:00",
+    "rescored_with": "current evaluation/scoring.py",
+    "preference_check": false
+  },
+  "summary": {
+    "cases": {
+      "passed": 8,
+      "total": 19,
+      "rate": 0.421
+    },
+    "preference_classification": {
+      "model_raw": {
+        "passed": 2,
+        "total": 7,
+        "rate": 0.286
+      },
+      "applied": {
+        "passed": 2,
+        "total": 7,
+        "rate": 0.286
+      },
+      "corrections": {}
+    },
+    "tool_call_correctness": {
+      "passed": 12,
+      "total": 17,
+      "rate": 0.706
+    },
+    "grounded": {
+      "passed": 18,
+      "total": 19,
+      "rate": 0.947
+    },
+    "invalid_tool_calls": 1,
+    "hard_constraint_violations": {
+      "checked": true,
+      "count": 0,
+      "cases": {}
+    },
+    "latency_per_case_s": {
+      "E01": 164.01,
+      "E02": 221.18,
+      "E03": 194.0,
+      "E04": 128.3,
+      "E05": 183.15,
+      "E06": 164.03,
+      "E07": 217.61,
+      "E08": 143.29,
+      "E09": 81.83,
+      "E10": 179.14,
+      "E11": 71.08,
+      "E12": 66.53,
+      "E13": 156.32,
+      "E14": 75.69,
+      "E15": 25.48,
+      "E16": 80.69,
+      "E17": 46.12,
+      "E18": 166.98,
+      "E19": 127.06
+    },
+    "criteria": {
+      "answer": {
+        "passed": 13,
+        "total": 19,
+        "rate": 0.684
+      },
+      "completed": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "course_ids": {
+        "passed": 11,
+        "total": 16,
+        "rate": 0.688
+      },
+      "grounded": {
+        "passed": 18,
+        "total": 19,
+        "rate": 0.947
+      },
+      "outcome": {
+        "passed": 6,
+        "total": 16,
+        "rate": 0.375
+      },
+      "preferences": {
+        "passed": 7,
+        "total": 7,
+        "rate": 1.0
+      },
+      "privacy": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "required": {
+        "passed": 2,
+        "total": 7,
+        "rate": 0.286
+      },
+      "tool_use": {
+        "passed": 12,
+        "total": 17,
+        "rate": 0.706
+      }
+    },
+    "categories": {
+      "basic_plan": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "full_section": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "mandatory_preference": {
+        "passed": 0,
+        "total": 2,
+        "rate": 0.0
+      },
+      "missing_prerequisite": {
+        "passed": 2,
+        "total": 3,
+        "rate": 0.667
+      },
+      "mixed_preferences": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "not_offered": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "privacy": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "prompt_injection": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "record_question": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "soft_preference": {
+        "passed": 1,
+        "total": 3,
+        "rate": 0.333
+      },
+      "time_conflict": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "topic_search": {
+        "passed": 0,
+        "total": 2,
+        "rate": 0.0
+      },
+      "unknown_course": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      }
+    },
+    "latency_s": {
+      "n": 19,
+      "median": 143.29,
+      "mean": 131.18,
+      "max": 221.18
+    },
+    "model_calls_total": 40,
+    "errors": [],
+    "cases_missing": []
+  }
+}

@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T06:06:46+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E10",
+    "request": "Please add CIS999 and CIS410 to my spring schedule.",
+    "student_id": "S10001",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "The course CIS999 does not exist. Here are the valid options for CIS410:\n\n1. **CIS410 - SEC2001**  \n   - Days: Monday, Wednesday  \n   - Time: 10:30 AM - 11:45 AM  \n   - Location: Building B 201  \n   - Credit Hours: 3  \n\n2. **CIS410 - SEC2002**  \n   - Mode: Online  \n   - Credit Hours: 3  \n\nPlease let me know if you'd like to add another course or adjust the schedule further.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS999",
+              "CIS410"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS999",
+              "CIS410"
+            ],
+            "options": [
+              {
+                "section_ids": [
+                  "SEC2001"
+                ],
+                "total_credit_hours": 3,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC2001",
+                    "course_id": "CIS410",
+                    "modality": "in_person",
+                    "seats_available": 5,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "10:30",
+                        "end": "11:45",
+                        "location": "Building B 201"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 1
+              },
+              {
+                "section_ids": [
+                  "SEC2002"
+                ],
+                "total_credit_hours": 3,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC2002",
+                    "course_id": "CIS410",
+                    "modality": "online",
+                    "seats_available": 22,
+                    "meetings": []
+                  }
+                ],
+                "rank": 2
+              }
+            ],
+            "excluded": [
+              {
+                "course_id": "CIS999",
+                "code": "UNKNOWN_COURSE",
+                "reason": "CIS999 does not exist."
+              }
+            ],
+            "combinations_checked": 2,
+            "rejection_counts": {},
+            "total_valid_options": 2,
+            "options_truncated": false,
+            "search_capped": false
+          }
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S10001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S10001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS999"
+          },
+          "is_error": true
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS410"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS410",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ]
+    },
+    "wall_s": 179.14,
+    "llm_calls": [
+      {
+        "wall_s": 24.61,
+        "prompt_tokens": 976,
+        "output_tokens": 33,
+        "prompt_s": 5.8,
+        "output_s": 18.8,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 153.04,
+        "prompt_tokens": 1340,
+        "output_tokens": 133,
+        "prompt_s": 68.97,
+        "output_s": 84.04,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E10",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS410', 'CIS999'] want=['CIS410', 'CIS999']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[['SEC2001'], ['SEC2002']] want=[['SEC2001'], ['SEC2002']] excluded={'CIS999': 'UNKNOWN_COURSE'} want={'CIS999': 'UNKNOWN_COURSE'}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": true,
+        "detail": "missing_groups=[] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    }
+  }
+}

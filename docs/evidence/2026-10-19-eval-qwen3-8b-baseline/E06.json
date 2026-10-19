@@ -1,0 +1,201 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T06:06:46+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E06",
+    "request": "Can I take CIS376 and CIS410? Ideally I'd be done by 11am.",
+    "student_id": "S10001",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "Yes, you can take CIS376 and CIS410. Here's a valid schedule option:\n\n- **CIS376 (SEC1001):** Monday and Wednesday from 9:30 AM to 10:45 AM in Building A 101.\n- **CIS410 (SEC2002):** Online with no set meeting times.\n\nThis schedule meets your preference of being done by 11 AM. Total credit hours: 6.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS376",
+              "CIS410"
+            ],
+            "latest_end": "11:00"
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS376",
+              "CIS410"
+            ],
+            "options": [
+              {
+                "section_ids": [
+                  "SEC1001",
+                  "SEC2002"
+                ],
+                "total_credit_hours": 6,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC1001",
+                    "course_id": "CIS376",
+                    "modality": "in_person",
+                    "seats_available": 6,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "09:30",
+                        "end": "10:45",
+                        "location": "Building A 101"
+                      }
+                    ]
+                  },
+                  {
+                    "section_id": "SEC2002",
+                    "course_id": "CIS410",
+                    "modality": "online",
+                    "seats_available": 22,
+                    "meetings": []
+                  }
+                ],
+                "rank": 1
+              }
+            ],
+            "excluded": [],
+            "combinations_checked": 2,
+            "rejection_counts": {
+              "TIME_CONFLICT": 1
+            },
+            "total_valid_options": 1,
+            "options_truncated": false,
+            "search_capped": false
+          }
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S10001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S10001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS376"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS410"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS376",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS410",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ]
+    },
+    "wall_s": 164.03,
+    "llm_calls": [
+      {
+        "wall_s": 31.96,
+        "prompt_tokens": 984,
+        "output_tokens": 43,
+        "prompt_s": 7.28,
+        "output_s": 24.66,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 130.69,
+        "prompt_tokens": 1293,
+        "output_tokens": 107,
+        "prompt_s": 58.82,
+        "output_s": 71.82,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E06",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS376', 'CIS410'] want=['CIS376', 'CIS410']"
+      },
+      "preferences": {
+        "pass": true,
+        "detail": "got={'latest_end': '11:00'} want={'latest_end': '11:00'}"
+      },
+      "required": {
+        "pass": true,
+        "detail": "got=[] want=[]"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[['SEC1001', 'SEC2002']] want=[['SEC1001', 'SEC2002']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": true,
+        "detail": "missing_groups=[] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    }
+  }
+}
