@@ -83,11 +83,32 @@ async def run_case(case: dict, term_id: str, llm, server_params,
         record["result"] = result.to_dict()
     except (LLMError, Exception) as e:  # keep going: a failed case is evidence too
         record["error"] = f"{type(e).__name__}: {e}"
+        # anyio wraps the real cause in an ExceptionGroup; keep the leaves too.
+        leaves, stack = [], [e]
+        while stack:
+            x = stack.pop()
+            subs = getattr(x, "exceptions", None)
+            if subs:
+                stack.extend(subs)
+            else:
+                leaves.append(f"{type(x).__name__}: {x}")
+        record["error_causes"] = leaves
+        record["error_kind"] = classify_error(" ".join(leaves))
     record["wall_s"] = round(time.perf_counter() - started, 2)
     if isinstance(llm, OllamaLLM):
         record["llm_calls"] = llm.stats[:]
         llm.stats.clear()
     return record
+
+
+def classify_error(text: str) -> str:
+    """Infrastructure vs. other failures, from the error text only (not from scores)."""
+    t = text.lower()
+    if "timed out" in t or "timeout" in t:
+        return "infrastructure:timeout"
+    if "ollama returned 5" in t or "llama-server process has terminated" in t or "cannot reach ollama" in t:
+        return "infrastructure:model_server"
+    return "other"
 
 
 def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], records: list[dict]) -> None:
@@ -151,6 +172,8 @@ async def main() -> None:
     p.add_argument("--model", default="qwen3:8b")
     p.add_argument("--no-think", action="store_true")
     p.add_argument("--num-ctx", type=int)
+    p.add_argument("--timeout", type=float, default=300,
+                   help="seconds per model call before the client gives up (OllamaLLM default 300)")
     p.add_argument("--oracle", action="store_true", help="replay each case's ideal responses, no model")
     p.add_argument("--no-preference-check", action="store_true",
                    help="ablation: let the model's required_preferences stand unchecked")
@@ -177,6 +200,7 @@ async def main() -> None:
         "model": None if a.oracle else a.model,
         "think": None if a.oracle else (not a.no_think),
         "num_ctx": a.num_ctx,
+        "llm_timeout_s": a.timeout,
         "preference_check": not a.no_preference_check,
         "evidence_check": not a.no_evidence_check,
         "cases_version": data["version"],
@@ -188,7 +212,7 @@ async def main() -> None:
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)],
                                    env={**os.environ, "UNA_DATA_DIR": str(data_dir_of(data))})
     live_llm = None if a.oracle else OllamaLLM(model=a.model, think=False if a.no_think else None,
-                                               num_ctx=a.num_ctx)
+                                               num_ctx=a.num_ctx, timeout=a.timeout)
 
     records, scores = [], []
     saved_meta = None
