@@ -125,6 +125,18 @@ def redact_record(record: dict, term_id: str) -> dict:
     return record
 
 
+def unload(llm: OllamaLLM) -> None:
+    """Unload the model from the Ollama server (infrastructure only; errors ignored)."""
+    import urllib.request
+
+    req = urllib.request.Request(f"{llm.host}/api/generate", headers={"Content-Type": "application/json"},
+                                 data=json.dumps({"model": llm.model, "keep_alive": 0}).encode())
+    try:
+        urllib.request.urlopen(req, timeout=60).read()
+    except Exception:  # noqa: BLE001 - a failed unload must not stop the run
+        pass
+
+
 def classify_error(text: str) -> str:
     """Infrastructure vs. other failures, from the error text only (not from scores)."""
     t = text.lower()
@@ -210,6 +222,10 @@ async def main() -> None:
                         "answers are returned flagged as before 2026-10-19")
     p.add_argument("--num-predict", type=int,
                    help="cap on output tokens per model call (default: no cap)")
+    p.add_argument("--unload-between-cases", action="store_true",
+                   help="infrastructure: ask Ollama to unload the model after each case (keep_alive 0), so "
+                        "memory held after a long case is released before the next one; the reload time is "
+                        "part of the next case's first call (load_s)")
     p.add_argument("--resume", action="store_true",
                    help="keep finished cases already in --out and run only the missing ones")
     p.add_argument("--summarize-only", action="store_true",
@@ -236,6 +252,7 @@ async def main() -> None:
         "evidence_check": not a.no_evidence_check,
         "security_check": not a.no_security_check,
         "num_predict": a.num_predict,
+        "unload_between_cases": a.unload_between_cases,
         "cases_version": data["version"],
         "dataset": a.dataset,
         "data_dir": str(data_dir_of(data).relative_to(ROOT.parent)),
@@ -277,6 +294,8 @@ async def main() -> None:
             json.dumps({"meta": meta, "record": record, "score": score}, indent=2), encoding="utf-8")
         failed = [k for k, c in score["checks"].items() if not c["pass"]]
         print(f"{case['id']} pass={score['pass']} wall={record['wall_s']}s failed={failed}", flush=True)
+        if a.unload_between_cases and live_llm is not None:
+            unload(live_llm)
 
     if a.summarize_only and saved_meta:
         # Keep the settings of the run that produced the records; note the rescoring.
