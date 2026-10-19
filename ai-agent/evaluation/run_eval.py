@@ -70,7 +70,8 @@ def load_cases(ids: list[str] | None = None, dataset: str = "dev", scoring_versi
 
 
 async def run_case(case: dict, term_id: str, llm, server_params,
-                   check_preference_language: bool = True, check_evidence: bool = True) -> dict:
+                   check_preference_language: bool = True, check_evidence: bool = True,
+                   check_security: bool = True) -> dict:
     record = {"case_id": case["id"], "request": case["request"], "student_id": case["student_id"],
               "term_id": term_id}
     started = time.perf_counter()
@@ -78,7 +79,8 @@ async def run_case(case: dict, term_id: str, llm, server_params,
         async with Client(server_params) as client:
             assistant = SchedulingAssistant(BannerTools(client), llm, case["student_id"], term_id,
                                             check_preference_language=check_preference_language,
-                                            check_evidence=check_evidence)
+                                            check_evidence=check_evidence,
+                                            check_security=check_security)
             result = await assistant.run(case["request"])
         record["result"] = result.to_dict()
     except (LLMError, Exception) as e:  # keep going: a failed case is evidence too
@@ -119,7 +121,9 @@ def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], re
         f"- Mode: {meta['mode']}; model: {meta.get('model')}; think: {meta.get('think')}; "
         f"num_ctx: {meta.get('num_ctx')}",
         f"- Machine: {meta['machine']}",
-        f"- Preference check: {meta.get('preference_check')}; evidence check: {meta.get('evidence_check')}",
+        f"- Preference check: {meta.get('preference_check')}; evidence check: {meta.get('evidence_check')}; "
+        f"security checks: {meta.get('security_check', 'n/a (before 2026-10-19 security work)')}; "
+        f"num_predict: {meta.get('num_predict')}",
         f"- Cases passed: {summary['cases']['passed']}/{summary['cases']['total']}"
         f" (missing: {', '.join(summary.get('cases_missing', [])) or 'none'})",
         f"- Preference classification: model {summary['preference_classification']['model_raw']['passed']}/"
@@ -179,6 +183,11 @@ async def main() -> None:
                    help="ablation: let the model's required_preferences stand unchecked")
     p.add_argument("--no-evidence-check", action="store_true",
                    help="ablation: no evidence orchestration / claim check (agent/evidence.py)")
+    p.add_argument("--no-security-check", action="store_true",
+                   help="ablation: no input inspection / output guard (agent/security.py); unverified "
+                        "answers are returned flagged as before 2026-10-19")
+    p.add_argument("--num-predict", type=int,
+                   help="cap on output tokens per model call (default: no cap)")
     p.add_argument("--resume", action="store_true",
                    help="keep finished cases already in --out and run only the missing ones")
     p.add_argument("--summarize-only", action="store_true",
@@ -203,6 +212,8 @@ async def main() -> None:
         "llm_timeout_s": a.timeout,
         "preference_check": not a.no_preference_check,
         "evidence_check": not a.no_evidence_check,
+        "security_check": not a.no_security_check,
+        "num_predict": a.num_predict,
         "cases_version": data["version"],
         "dataset": a.dataset,
         "data_dir": str(data_dir_of(data).relative_to(ROOT.parent)),
@@ -212,7 +223,8 @@ async def main() -> None:
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)],
                                    env={**os.environ, "UNA_DATA_DIR": str(data_dir_of(data))})
     live_llm = None if a.oracle else OllamaLLM(model=a.model, think=False if a.no_think else None,
-                                               num_ctx=a.num_ctx, timeout=a.timeout)
+                                               num_ctx=a.num_ctx, timeout=a.timeout,
+                                               num_predict=a.num_predict)
 
     records, scores = [], []
     saved_meta = None
@@ -233,7 +245,8 @@ async def main() -> None:
         llm = ScriptedLLM(case["oracle"]) if a.oracle else live_llm
         record = await run_case(case, data["term_id"], llm, params,
                                 check_preference_language=not a.no_preference_check,
-                                check_evidence=not a.no_evidence_check)
+                                check_evidence=not a.no_evidence_check,
+                                check_security=not a.no_security_check)
         score = rescore(case, record)
         records.append(record)
         scores.append(score)

@@ -62,12 +62,20 @@ async def test_oracle(case_id, heldout_server):
     case = next(c for c in HELD["cases"] if c["id"] == case_id)
     record = await run_case(case, HELD["term_id"], ScriptedLLM(case["oracle"]), heldout_server)
     score = score_case_v2(case, record, HDS)
-    if case_id in HELD.get("touched_cases", {}):
-        # Documented system limitation (see touched_cases): the deterministic
-        # preference check overrides the student's relaxation in H32.
-        assert not score["pass"]
-        return
+    # H32 failed here until 2026-10-19 (pre-registered limitation: the preference
+    # check ignored the relaxation in the second sentence). The set is development
+    # data since the security-hardening work, and relaxations are now handled.
     assert score["pass"], score["checks"]
+
+
+def test_h32_relaxation_defers_to_the_model():
+    from agent.preference_language import deferrals, reconcile
+
+    request = next(c for c in HELD["cases"] if c["id"] == "H32")["request"]
+    assert reconcile(request, ["avoid_days"], []) == ([], [])  # model said soft: unchanged
+    assert reconcile(request, ["avoid_days"], ["avoid_days"]) == (["avoid_days"], [])  # no override either way
+    (d,) = deferrals(request, ["avoid_days"], [])
+    assert d["mandatory_cues"] == ["must"] and "no other way" in d["optional_cues"]
 
 
 @pytest.mark.parametrize("case_id", [c["id"] for c in DEV["cases"]])

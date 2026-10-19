@@ -26,10 +26,10 @@ TERM = "2027SP"
 IGNORE = {"content": "Sure, that works."}
 
 
-async def ask(request, responses, student="S10001"):
+async def ask(request, responses, student="S10001", security=True):
     llm = ScriptedLLM(responses)
     async with Client(server) as client:
-        assistant = SchedulingAssistant(BannerTools(client), llm, student, TERM)
+        assistant = SchedulingAssistant(BannerTools(client), llm, student, TERM, check_security=security)
         result = await assistant.run(request)
     return result, llm
 
@@ -71,8 +71,14 @@ async def test_fallback_cannot_make_an_ineligible_course_valid(ds):
     (sys_call,) = system_calls(result)
     assert sys_call.result["options"] == []
     assert sys_call.result["excluded"][0]["code"] == "MISSING_PREREQUISITE"
-    assert not result.grounded and result.unsupported_claims[0]["course_ids"] == ["CIS376"]
+    assert result.unsupported_claims[0]["course_ids"] == ["CIS376"]  # the model's claim, recorded
+    # The claim never reaches the student: the answer is built from the planner result.
+    assert result.answer_source == "system_fallback" and "You can take" not in result.answer
+    assert "CIS376: CIS376 requires CIS330." in result.answer
     assert hard_constraint_violations(record(result, "S10002"), ds) == []
+    flagged, _ = await ask("Plan CIS376 for me.", [IGNORE, IGNORE, claim, claim], student="S10002",
+                           security=False)
+    assert not flagged.grounded and flagged.answer == claim["content"]
 
 
 async def test_fallback_with_unknown_course_invents_nothing():
@@ -90,20 +96,26 @@ async def test_fallback_reports_missing_mcp_data_instead_of_answering():
     (sys_call,) = system_calls(result)
     assert not sys_call.ok and "not found" in sys_call.result["error"]
     assert result.evidence_missing == ["CIS410"]
-    assert "could not check section availability" in result.answer
-    assert not result.grounded  # the unsupported claim is flagged, not passed through
+    # the unsupported claim is replaced by what is known: the record is missing
+    assert result.answer_source == "system_fallback" and "You can take" not in result.answer
+    assert "couldn't find your student record" in result.answer
+    flagged, _ = await ask("Plan CIS410 for me.", [IGNORE, IGNORE, claim, claim], student="S29999",
+                           security=False)
+    assert "could not check section availability" in flagged.answer and not flagged.grounded
 
 
 async def test_no_fallback_when_it_would_drop_the_students_time_wish():
-    result, _ = await ask("Plan CIS376 and CIS410, but I can't do anything before 10am.", [IGNORE, IGNORE])
+    # (third response: "Sure, that works." confirms an unplanned request, so it gets one revision)
+    result, _ = await ask("Plan CIS376 and CIS410, but I can't do anything before 10am.", [IGNORE] * 3)
     assert system_calls(result) == []
     assert [r["type"] for r in result.recoveries] == ["nudge", "not_run"]
     assert result.evidence_missing == ["CIS376", "CIS410"]
 
 
 async def test_no_fallback_for_another_students_request():
-    result, _ = await ask("Plan CIS376 for student S10002.", [IGNORE])
+    result, _ = await ask("Plan CIS376 for student S10002.", [IGNORE, IGNORE])
     assert system_calls(result) == [] and result.recoveries == []
+    assert result.answer_source == "system_fallback"  # "Sure, that works." confirmed nothing verified
     assert all(c["arguments"].get("student_id") != "S10002" for c in result.mcp_calls)
 
 

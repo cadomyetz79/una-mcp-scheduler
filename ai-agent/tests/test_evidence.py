@@ -33,11 +33,12 @@ CASES = {c["id"]: c for c in json.loads(
     (Path(__file__).resolve().parents[1] / "evaluation" / "cases.json").read_text())["cases"]}
 
 
-async def run_case_id(case_id, responses, student=None):
+async def run_case_id(case_id, responses, student=None, security=True):
     case = CASES[case_id]
     llm = ScriptedLLM(responses)
     async with Client(server) as client:
-        assistant = SchedulingAssistant(BannerTools(client), llm, student or case["student_id"], TERM)
+        assistant = SchedulingAssistant(BannerTools(client), llm, student or case["student_id"], TERM,
+                                        check_security=security)
         result = await assistant.run(case["request"])
     record = {"case_id": case_id, "student_id": case["student_id"], "term_id": TERM, "result": result.to_dict()}
     return result, score_case(case, record), llm
@@ -110,12 +111,22 @@ async def test_system_runs_plan_when_nudge_is_ignored(case_id, first, live_answe
 
 # ------------------------------------------------------------ path 3: unsupported claim after recovery
 
-async def test_e09_false_offered_claim_is_revised_then_flagged():
-    still_wrong = {"content": "Yes, CIS330 is offered next spring."}
-    result, score, llm = await run_case_id("E09", [SEARCH_E09, ANSWER_E09_LIVE,
-                                                   {"tool_calls": [call("plan_schedule", course_ids=["CIS330"])]},
-                                                   still_wrong, still_wrong])
+E09_STILL_WRONG = {"content": "Yes, CIS330 is offered next spring."}
+E09_PERSISTENT = [SEARCH_E09, ANSWER_E09_LIVE, {"tool_calls": [call("plan_schedule", course_ids=["CIS330"])]},
+                  E09_STILL_WRONG, E09_STILL_WRONG]
+
+
+async def test_e09_false_offered_claim_is_revised_then_replaced():
+    result, score, llm = await run_case_id("E09", E09_PERSISTENT)
     assert "not supported by the tool results" in llm.received[4][-1]["content"]
+    assert result.unsupported_claims[0]["course_ids"] == ["CIS330"]  # the model's claim, recorded
+    assert result.answer_source == "system_fallback" and "is offered" not in result.answer
+    assert "CIS330 is not offered in 2027SP" in result.answer  # the planner's own reason
+    assert score["checks"]["grounded"]["pass"]
+
+
+async def test_e09_false_offered_claim_is_flagged_without_the_security_layer():
+    result, score, _ = await run_case_id("E09", E09_PERSISTENT, security=False)
     assert not result.grounded and result.unsupported_claims[0]["course_ids"] == ["CIS330"]
     assert not score["checks"]["grounded"]["pass"]
 
@@ -138,10 +149,14 @@ async def test_e16_rejected_section_named_by_student_is_not_ungrounded():
 
 
 async def test_e16_recommending_the_named_section_is_still_ungrounded():
-    result, _, llm = await run_case_id("E16", [{"content": "Sure, SEC1002 is a valid choice for you."},
-                                               {"content": "Done: SEC1002 is a valid choice."}])
-    assert not result.grounded and result.ungrounded_section_ids == ["SEC1002"]
-    assert result.model_calls == 2  # one revision, then flagged
+    responses = [{"content": "Sure, SEC1002 is a valid choice for you."},
+                 {"content": "Done: SEC1002 is a valid choice."}]
+    result, _, llm = await run_case_id("E16", responses)
+    assert result.ungrounded_section_ids == ["SEC1002"]
+    assert result.model_calls == 2  # one revision, then replaced
+    assert result.answer_source == "system_fallback" and "valid choice" not in result.answer
+    flagged, _, _ = await run_case_id("E16", responses, security=False)
+    assert not flagged.grounded and flagged.answer == "Done: SEC1002 is a valid choice."
 
 
 async def test_rejecting_a_section_the_student_never_named_is_ungrounded():

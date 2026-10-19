@@ -40,8 +40,8 @@ def verdicts(text):
     ("No classes before 10.", "earliest_start", "unknown"),
     ("I don't want Friday classes.", "avoid_days", "unknown"),
     # conflicting instructions about the same preference
-    ("Ideally after 10am, but I really can't do 8am.", "earliest_start", "unknown"),
-    ("I can't do Mondays. Actually Mondays are fine if needed.", "avoid_days", "unknown"),
+    ("Ideally after 10am, but I really can't do 8am.", "earliest_start", "conflicting"),
+    ("I can't do Mondays. Actually Mondays are fine if needed.", "avoid_days", "conflicting"),
 ])
 def test_classify(text, pref, verdict):
     assert verdicts(text)[pref] == verdict, classify(text)[pref]
@@ -108,3 +108,31 @@ def test_every_weekday_name_is_recognised(word):
     # Regression: "Wednesday" and "Saturday" were not matched before 2026-10-19
     # (found while validating the held-out set's oracle, before any live run).
     assert classify(f"I can't do {word}.")["avoid_days"]["verdict"] == "required"
+
+
+# ------------------------------------------------ relaxations (after H32; held-out set is development data now)
+
+@pytest.mark.parametrize("text, pref, verdict", [
+    # required, then relaxed in a later sentence -> conflicting: the model's reading stands
+    ("I must avoid Wednesdays. Actually, Wednesdays are fine if there's no other way.", "avoid_days", "conflicting"),
+    ("No classes after 5pm, I can't. Well, 6pm is okay as a last resort.", "latest_end", "conflicting"),
+    ("I have to start after 10am. If I have to, 9am works.", "earliest_start", "conflicting"),
+    # relaxation alone -> soft
+    ("Fridays are fine if nothing else works, but I'd rather keep them free.", "avoid_days", "soft"),
+    ("If there is no other option, a Monday class is acceptable.", "avoid_days", "soft"),
+    # negated relaxation -> mandatory
+    ("Fridays are not okay for me.", "avoid_days", "required"),
+    ("Evenings aren't fine, I have to finish by 5pm.", "latest_end", "required"),
+    # "OK"/"fine" that do not talk about the preference change nothing
+    ("OK, I can't do Fridays.", "avoid_days", "required"),
+    ("Fine. I cannot come on Tuesdays at all.", "avoid_days", "required"),
+    ("CIS340 is fine, but I can't do Thursdays.", "avoid_days", "required"),
+])
+def test_relaxations(text, pref, verdict):
+    assert verdicts(text)[pref] == verdict, classify(text)[pref]
+
+
+def test_conflicting_wording_never_overrides_the_model():
+    text = "I can't do Mondays. Mondays are fine if there's no other way."
+    assert reconcile(text, ["avoid_days"], []) == ([], [])
+    assert reconcile(text, ["avoid_days"], ["avoid_days"]) == (["avoid_days"], [])

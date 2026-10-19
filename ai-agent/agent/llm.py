@@ -59,9 +59,14 @@ class OllamaLLM:
         temperature: float = 0.0,
         think: bool | None = None,
         num_ctx: int | None = None,
+        num_predict: int | None = None,
     ):
         """think: None leaves the model's default; False turns off qwen3's
         reasoning trace (much faster on CPU). num_ctx: context window to request.
+        num_predict: cap on output tokens per call (None = no cap). It bounds the
+        cost of runaway generations: the longest normal answer in the recorded
+        live runs was 556 tokens; the leaking H20 answers were 915 and 1023 and
+        took close to 10 minutes on CPU. A capped call has done_reason "length".
         Every call's token counts and timings are kept in self.stats."""
         self.model = model
         self.host = (host or os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
@@ -71,6 +76,7 @@ class OllamaLLM:
         self.temperature = temperature
         self.think = think
         self.num_ctx = num_ctx
+        self.num_predict = num_predict
         self.stats: list[dict] = []
 
     def _post(self, payload: dict) -> dict:
@@ -91,6 +97,8 @@ class OllamaLLM:
         options: dict[str, Any] = {"temperature": self.temperature}
         if self.num_ctx:
             options["num_ctx"] = self.num_ctx
+        if self.num_predict:
+            options["num_predict"] = self.num_predict
         payload = {
             "model": self.model,
             "messages": messages,
@@ -114,6 +122,7 @@ class OllamaLLM:
                 "load_s": round((data.get("load_duration") or 0) / ns, 2),
                 "thinking_chars": len(msg.get("thinking") or ""),
                 "tool_calls": len(msg.get("tool_calls") or []),
+                "done_reason": data.get("done_reason"),
             }
         )
         return {
