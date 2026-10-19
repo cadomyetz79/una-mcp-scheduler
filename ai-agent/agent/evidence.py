@@ -15,7 +15,8 @@ answer is backed by it. No model is involved.
    answer there).
 
 2. unsupported_claims(): sentences in the answer that claim availability or
-   eligibility for a course ("is offered", "is available", "you can take",
+   eligibility for a course (a course named only as a prerequisite or
+   corequisite in that sentence is not the subject of the claim) ("is offered", "is available", "you can take",
    "you are eligible") must be backed by plan_schedule: a positive claim needs
    the course in a returned option; a negative claim needs the course to have
    been planned at all. A course named only by its title is recognised if a
@@ -153,6 +154,25 @@ def _titles_from_trace(trace: list) -> dict[str, str]:
     return out
 
 
+# A course named right after these words is a prerequisite/corequisite being
+# mentioned, not the course the claim is about: "You are eligible to take this
+# course if you have completed the prerequisite CIS236" (live SL11, development
+# data) is not a claim that CIS236 is offered.
+_PREREQ_CUE = re.compile(
+    r"\b(prerequisites?|prereqs?|requires?|required|completed?|completing|after taking|corequisites?|"
+    r"must be taken with|taken together with)\b", re.IGNORECASE)
+_SPAN_END = re.compile(r"[,;:.!?)]|\s(so|and you|but|which)\s", re.IGNORECASE)
+
+
+def _prerequisite_mentions(sentence: str) -> set[str]:
+    found: set[str] = set()
+    for m in _PREREQ_CUE.finditer(sentence):
+        rest = sentence[m.end():]
+        end = _SPAN_END.search(rest)
+        found |= set(course_ids(rest[: end.start()] if end else rest))
+    return found
+
+
 def unsupported_claims(answer: str, trace: list) -> list[dict]:
     planned = planned_courses(trace)
     titles = _titles_from_trace(trace)
@@ -163,6 +183,8 @@ def unsupported_claims(answer: str, trace: list) -> list[dict]:
         ids = course_ids(sentence)
         low = sentence.lower()
         ids += [cid for title, cid in titles.items() if title in low and cid not in ids]
+        prereqs = _prerequisite_mentions(sentence)
+        ids = [c for c in ids if c not in prereqs]
         if not ids:
             continue
         negative = bool(_NEGATION.search(sentence))

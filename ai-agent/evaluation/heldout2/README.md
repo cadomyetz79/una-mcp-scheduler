@@ -125,4 +125,9 @@ DEVELOPMENT data (no live run of this set had been made):
   ("the `plan_schedule` tool" -> "the schedule planner"). Motivation: the
   live H18 answer (first held-out set, now development data).
 
+- 2026-10-19, a course named only as a prerequisite or corequisite in a
+  sentence ("... if you have completed the prerequisite CIS236") is not the
+  subject of an availability/eligibility claim. Motivation: the live security
+  set (SL11), where a correct answer was replaced because of that sentence.
+
 No case, expectation, oracle or scoring change.

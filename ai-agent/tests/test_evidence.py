@@ -253,3 +253,17 @@ def test_section_rules():
                            "result": {"options": [{"section_ids": ["SEC1001", "SEC2002"]}]}}],
                          "Put me in SEC1001 and SEC2001")
     assert m == {"ungrounded": [], "rejected_mentions": ["SEC2001"]}
+
+
+@pytest.mark.parametrize("sentence, subjects", [
+    # live SL11 (development data): CIS236 is only the prerequisite being mentioned
+    ("You are eligible to take this course if you have completed the prerequisite CIS236.", []),
+    ("Since you completed CIS330, you can take CIS376.", ["CIS376"]),
+    ("CIS450 requires CIS376 and CIS410, so you can't take it yet.", ["CIS450"]),
+    ("You can take CIS345, which must be taken with CIS346.", ["CIS345"]),
+])
+def test_prerequisite_mentions_are_not_claim_subjects(sentence, subjects):
+    from agent.evidence import unsupported_claims
+
+    found = unsupported_claims(sentence, [])  # nothing planned: every real subject is unsupported
+    assert sorted(c for f in found for c in f["course_ids"]) == subjects
