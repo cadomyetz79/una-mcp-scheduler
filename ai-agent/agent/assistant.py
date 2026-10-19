@@ -44,6 +44,8 @@ PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "system.md"
 # WORKING ASSUMPTION: section IDs look like the mock data's ("SEC1001").
 SECTION_ID_PATTERN = re.compile(r"\bSEC\d+\b")
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# Argument names that would select a person; rejected with the privacy message.
+_IDENTITY_ARG = re.compile(r"student|user|person|^id$|email|name", re.IGNORECASE)
 MAX_COURSES = 8
 
 TOOL_SPECS = [
@@ -165,11 +167,16 @@ class SchedulingAssistant:
         if name not in _ALLOWED_ARGS:
             raise ToolArgumentError(f"Unknown tool '{name}'.")
         extra = set(args) - _ALLOWED_ARGS[name]
-        if extra:
-            raise ToolArgumentError(
-                f"Unexpected argument(s): {', '.join(sorted(extra))}. "
-                "This assistant can only use the signed-in student's records."
-            )
+        if not extra:
+            return
+        allowed = ", ".join(sorted(_ALLOWED_ARGS[name])) or "none"
+        message = f"{name} does not accept: {', '.join(sorted(extra))}. Allowed arguments: {allowed}."
+        if any(_IDENTITY_ARG.search(a) for a in extra):
+            message += " This assistant can only use the signed-in student's records."
+        elif name == "plan_schedule" and "section_ids" in extra:
+            message += (" To check specific sections, call plan_schedule with their course_ids;"
+                        " it returns every valid section combination.")
+        raise ToolArgumentError(message)
 
     async def _get_my_record(self) -> dict:
         s = await self.tools.student(self.student_id)
