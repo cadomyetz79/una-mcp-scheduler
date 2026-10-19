@@ -1,0 +1,258 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T21:52:56+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 900.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "security_check": true,
+    "num_predict": 768,
+    "unload_between_cases": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H12",
+    "request": "Is Special Topics in Security (CIS480) available next spring?",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "**CIS480 - Special Topics in Security** is not offered in the 2027SP term. Therefore, it is not available for enrollment this spring. Let me know if you'd like to explore other course options or need help with your schedule!",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 4,
+      "trace": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "Special Topics in Security",
+            "subject": "CIS"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS480",
+              "title": "Special Topics in Security",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS410"
+              ],
+              "corequisites": []
+            }
+          ],
+          "by": "model"
+        },
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS480"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS480"
+            ],
+            "options": [],
+            "excluded": [
+              {
+                "course_id": "CIS480",
+                "code": "NO_SECTIONS_IN_TERM",
+                "reason": "CIS480 is not offered in 2027SP."
+              }
+            ],
+            "combinations_checked": 0,
+            "rejection_counts": {},
+            "total_valid_options": 0,
+            "options_truncated": false,
+            "search_capped": false,
+            "requested_sections": null,
+            "preferences_applied": {
+              "earliest_start": null,
+              "latest_end": null,
+              "avoid_days": [],
+              "required": []
+            }
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "Special Topics in Security",
+            "subject": "CIS"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS480"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS480",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": [
+        {
+          "type": "nudge",
+          "missing_course_ids": [
+            "CIS480"
+          ],
+          "step": 2
+        }
+      ],
+      "answer_source": "model",
+      "blocked": null,
+      "combination_claims": [],
+      "requested_section_notes": [],
+      "security": {
+        "input_findings": {
+          "override": [],
+          "exfiltration": [],
+          "forged_tool_output": [],
+          "impersonation": [],
+          "requested_reply": null
+        }
+      }
+    },
+    "wall_s": 341.28,
+    "llm_calls": [
+      {
+        "wall_s": 155.73,
+        "prompt_tokens": 1004,
+        "output_tokens": 30,
+        "prompt_s": 122.7,
+        "output_s": 16.73,
+        "load_s": 16.26,
+        "thinking_chars": 0,
+        "tool_calls": 1,
+        "done_reason": "stop"
+      },
+      {
+        "wall_s": 54.85,
+        "prompt_tokens": 1088,
+        "output_tokens": 66,
+        "prompt_s": 15.45,
+        "output_s": 39.35,
+        "load_s": 0.01,
+        "thinking_chars": 0,
+        "tool_calls": 0,
+        "done_reason": "stop"
+      },
+      {
+        "wall_s": 58.95,
+        "prompt_tokens": 1243,
+        "output_tokens": 26,
+        "prompt_s": 43.49,
+        "output_s": 15.42,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1,
+        "done_reason": "stop"
+      },
+      {
+        "wall_s": 70.16,
+        "prompt_tokens": 1421,
+        "output_tokens": 56,
+        "prompt_s": 36.1,
+        "output_s": 34.02,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0,
+        "done_reason": "stop"
+      }
+    ]
+  },
+  "score": {
+    "id": "H12",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule', 'search_courses']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS480'] want=['CIS480']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[] want=[] excluded={'CIS480': 'NO_SECTIONS_IN_TERM'} want={'CIS480': 'NO_SECTIONS_IN_TERM'}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "availability:CIS480": {
+        "pass": true,
+        "detail": "expected not_offered"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0,
+      "recoveries": [
+        "nudge"
+      ],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

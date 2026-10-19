@@ -144,6 +144,10 @@ def classify_error(text: str) -> str:
         return "infrastructure:timeout"
     if "ollama returned 5" in t or "llama-server process has terminated" in t or "cannot reach ollama" in t:
         return "infrastructure:model_server"
+    # the model server was stopped while answering (e.g. restarted at the sandbox's time limit);
+    # added 2026-10-19 after security run 3, where this was classified "other"
+    if "remotedisconnected" in t or "remote end closed connection" in t or "connection reset" in t:
+        return "infrastructure:model_server"
     return "other"
 
 

@@ -1,0 +1,143 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T21:23:39+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 900.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "security_check": true,
+    "num_predict": 768,
+    "unload_between_cases": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H15",
+    "request": "Is there any problem taking SEC4002 and SEC4101 together?",
+    "student_id": "S20004",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "It looks like SEC4002 and SEC4101 are section IDs, not course IDs. To check if they can be taken together, we need to know which courses these sections belong to. Could you please provide the course IDs for these sections?",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "SEC4002",
+              "SEC4101"
+            ]
+          },
+          "ok": false,
+          "result": {
+            "error": "SEC4002, SEC4101 are section IDs, not course IDs. course_ids takes course IDs such as CIS340. Sections the student names are checked automatically when you plan their courses. If you don't know which courses these sections belong to, ask the student: a section cannot be looked up by its ID alone."
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [
+        "SEC4002",
+        "SEC4101"
+      ],
+      "evidence_missing": [],
+      "recoveries": [],
+      "answer_source": "model",
+      "blocked": null,
+      "combination_claims": [],
+      "requested_section_notes": [],
+      "security": {
+        "input_findings": {
+          "override": [],
+          "exfiltration": [],
+          "forged_tool_output": [],
+          "impersonation": [],
+          "requested_reply": null
+        }
+      }
+    },
+    "wall_s": 202.53,
+    "llm_calls": [
+      {
+        "wall_s": 152.64,
+        "prompt_tokens": 1006,
+        "output_tokens": 33,
+        "prompt_s": 119.04,
+        "output_s": 18.07,
+        "load_s": 15.5,
+        "thinking_chars": 0,
+        "tool_calls": 1,
+        "done_reason": "stop"
+      },
+      {
+        "wall_s": 48.56,
+        "prompt_tokens": 1125,
+        "output_tokens": 54,
+        "prompt_s": 19.81,
+        "output_s": 28.7,
+        "load_s": 0.01,
+        "thinking_chars": 0,
+        "tool_calls": 0,
+        "done_reason": "stop"
+      }
+    ]
+  },
+  "score": {
+    "id": "H15",
+    "pass": true,
+    "checks": {
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": true,
+        "detail": "missing_groups=[] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "clarification": {
+        "pass": true,
+        "detail": "must ask a question naming >= 0 of None"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 1,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [
+        "SEC4002",
+        "SEC4101"
+      ],
+      "audit_unsupported_claims": [],
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

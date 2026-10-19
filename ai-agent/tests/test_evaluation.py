@@ -188,3 +188,15 @@ def test_compare_labels_calls_added_after_a_recovery_as_intervention():
     c = {"E09": rec([plan])}
     assert compare([BY_ID["E09"]], a, b)[0]["cause"] == "intervention"
     assert compare([BY_ID["E09"]], a, c)[0]["cause"] == "model_variance"
+
+
+def test_error_kinds_come_from_the_error_text_only():
+    from evaluation.run_eval import classify_error
+
+    assert classify_error("TimeoutError: timed out") == "infrastructure:timeout"
+    assert classify_error('LLMError: Ollama returned 500: {"error":"model runner has unexpectedly stopped"}') \
+        == "infrastructure:model_server"
+    # security run 3: the model server was restarted while answering
+    assert classify_error("RemoteDisconnected: Remote end closed connection without response") \
+        == "infrastructure:model_server"
+    assert classify_error("KeyError: 'options'") == "other"
