@@ -323,8 +323,10 @@ classes flagged (planner stub).
     note after the model's unchanged answer.
 - The dataset oracle replays (dev, held-out, security and the 37 `heldout2`
   oracles, all scripted, no model) pass unchanged.
-- CI (Ubuntu and Windows, Python 3.12 and 3.13) runs on pushes to the fork;
-  its result for this branch is recorded below once known.
+- CI (Ubuntu and Windows, Python 3.12 and 3.13) has **not** run on this
+  branch: GitHub Actions has never run on the fork (0 workflow runs), so CI
+  will first run when a pull request is opened against the team repository.
+  Windows was not tested.
 
 ---
 
