@@ -189,18 +189,34 @@ async def test_ambiguous_search_does_not_invent_course_ids():
     assert not any(t.tool == "plan_schedule" for t in result.trace)
 
 
-async def test_no_system_plan_when_the_request_states_time_wishes():
+async def test_no_system_plan_when_the_request_states_time_wishes_code_cannot_read():
     # Running plan_schedule without the student's time wish would ignore it,
     # so the system does not do it; the answer says what could not be checked.
+    # (Since 2026-10-19 the system does plan when code can read every stated
+    # wish, see the next test; "not too early" has no time, so it cannot.)
     ignore = {"content": "CIS376 and CIS410 look fine."}
     llm = ScriptedLLM([ignore, ignore])
     async with Client(server) as client:
         result = await SchedulingAssistant(BannerTools(client), llm, "S10001", TERM).run(
-            "I'd like CIS376 and CIS410, ideally no classes before 10am.")
+            "I'd like CIS376 and CIS410, ideally not too early in the morning.")
     assert [r["type"] for r in result.recoveries] == ["nudge", "not_run"]
     assert result.evidence_missing == ["CIS376", "CIS410"]
     assert "could not check section availability" in result.answer
     assert not any(t.tool == "plan_schedule" for t in result.trace)
+
+
+async def test_system_plan_uses_the_time_wish_read_from_the_students_words():
+    ignore = {"content": "CIS376 and CIS410 look fine."}
+    llm = ScriptedLLM([ignore, ignore, {"content": "Here is what the registration system returned."}])
+    async with Client(server) as client:
+        result = await SchedulingAssistant(BannerTools(client), llm, "S10001", TERM).run(
+            "I'd like CIS376 and CIS410, ideally no classes before 10am.")
+    assert [r["type"] for r in result.recoveries] == ["nudge", "system_plan_schedule"]
+    plan = next(t for t in result.trace if t.by == "system")
+    # soft wish: applied for ranking only, value from the student's words, never invented
+    assert plan.arguments == {"course_ids": ["CIS376", "CIS410"], "earliest_start": "10:00"}
+    assert plan.result["preferences_applied"]["earliest_start"] == "10:00"
+    assert plan.result["preferences_applied"]["required"] == []
 
 
 async def test_recovery_is_bounded():

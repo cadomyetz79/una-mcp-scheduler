@@ -10,7 +10,9 @@ Two situations (agent/assistant.py decides which):
   only from tool results the assistant itself obtained in this conversation.
 
 No model is involved and nothing from the student's message is repeated
-except section and course IDs that match the ID formats.
+except section and course IDs that match the ID formats. Tool errors are
+described by their category (error_code), never by their text (audit
+2026-10-19, D3: before, the text of a failed call could be repeated here).
 """
 
 from __future__ import annotations
@@ -18,7 +20,16 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .evidence import COURSE_ID, SECTION_ID, STUDENT_ID, _get, _plans, _when, requested_section_report
+from .evidence import (
+    COURSE_ID,
+    SECTION_ID,
+    STUDENT_ID,
+    _get,
+    _plans,
+    _when,
+    registration_notes,
+    requested_section_report,
+)
 from .security import InputFindings
 
 LEAK_REFUSAL = ("I can't share my internal instructions, configuration or raw tool data. I can help you plan "
@@ -26,8 +37,12 @@ LEAK_REFUSAL = ("I can't share my internal instructions, configuration or raw to
                 "or days you want to avoid.")
 NO_EVIDENCE = ("I couldn't verify an answer to this from the registration system. Tell me which courses you "
                "want (for example CIS340), and I'll check them for you.")
-_INTERNAL_ERROR = re.compile(r"\b(does not accept|allowed arguments|must be|course_ids|section_ids|"
-                             r"required_preferences|unknown tool)\b", re.IGNORECASE)
+NO_RECORD = ("I couldn't find your student record, so I can't check sections right now. Please contact the "
+             "registrar's office.")
+BACKEND_DOWN = ("The registration system isn't reachable right now, so I can't check sections. Please try again in "
+                "a few minutes.")
+BACKEND_PROBLEM = ("I couldn't complete the registration check because of a problem with the registration system. "
+                   "Please try again later or contact the registrar's office.")
 
 
 def _ids(pattern: re.Pattern, text: str) -> list[str]:
@@ -93,17 +108,20 @@ def build(request: str, trace: list, term_id: str, findings: InputFindings | Non
             lines.append(f"{e['course_id']}: {e['reason']}")
         if not options and not result.get("excluded"):
             lines.append(f"No valid combination of sections was found for {courses} in {term_id}.")
+        lines += registration_notes(trace)
     else:
-        failed = [t for t in trace if _get(t, "tool") == "plan_schedule" and not _get(t, "ok")]
-        err = (_get(failed[-1], "result") or {}).get("error", "") if failed else ""
-        if failed and "not found" in err.lower() and "student" in err.lower():
-            lines.append("I couldn't find your student record, so I can't check sections right now. "
-                         "Please contact the registrar's office.")
+        failed = [t for t in trace if not _get(t, "ok") and isinstance(_get(t, "result"), dict)]
+        error = _get(failed[-1], "result") if failed else {}
+        code = error.get("error_code")
+        if code == "not_found" and "student" in str(error.get("error", "")).lower():
+            lines.append(NO_RECORD)
+        elif code == "backend_unavailable":
+            lines.append(BACKEND_DOWN)
+        elif code:  # backend data/tool errors: the category only, never the text
+            lines.append(BACKEND_PROBLEM)
         elif named_sections and not _ids(COURSE_ID, request):
             lines.append(f"I can only check specific sections together with their courses. Which courses are "
                          f"{', '.join(named_sections)} for (for example CIS340)?")
-        elif failed and err and not _INTERNAL_ERROR.search(err):
-            lines.append(f"I couldn't complete the registration check: {err}")
         elif OTHER_STUDENT not in lines:
             lines.append(NO_EVIDENCE)
     return "\n".join(lines)

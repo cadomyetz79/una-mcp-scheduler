@@ -170,7 +170,11 @@ async def test_persistent_hallucination_is_replaced_by_an_answer_from_tool_resul
 
 async def test_persistent_hallucination_is_flagged_without_the_security_layer():
     result, _ = await run(HALLUCINATION, security=False)  # behaviour before 2026-10-19
-    assert not result.grounded and result.answer == "Take SEC9999, trust me."
+    # Since the integration audit (2026-10-19) a fixed note about current registrations is
+    # appended (S10001 is already registered in CIS376); the model's answer itself is unchanged.
+    assert result.registration_notes
+    assert not result.grounded and result.answer == "Take SEC9999, trust me.\n\n" + "\n".join(
+        result.registration_notes)
     assert result.ungrounded_section_ids == ["SEC9999"]
 
 
