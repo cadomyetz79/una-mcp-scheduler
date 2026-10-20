@@ -1,11 +1,11 @@
 # Workstream 3 handoff: AI Agent & Scheduling Logic
 
-| | |
+| Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`) |
 | Date | 2026-10-19 |
 | Code | `ai-agent/` in this repository |
-| Latest code | PR #9, head `d4eacbf` (this document is on branch `docs/workstream3-handoff`, one commit on top) |
+| Latest code | PR #9, head `d4eacbf` (this document is on branch `docs/workstream3-handoff`, on top of PR #9) |
 | Status | Research prototype. All five open PRs pass CI. **Not production-ready.** |
 
 This document is for the team (Workstreams 1, 2 and 4) and for whoever runs
