@@ -34,8 +34,10 @@ ai-agent/
 └── requirements.txt
 ```
 
-Not built yet: Entra identity (student_id is currently passed in), and a
-live-model evaluation run.
+Not built yet: Entra identity (student_id is currently passed in) and the
+connection to the real Mock Banner API / MCP server. Team handoff (status,
+open PRs, integration requirements, how to run `heldout2`):
+`docs/workstream3-handoff.md`.
 
 ## Architecture so far
 
