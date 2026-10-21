@@ -199,14 +199,17 @@ def unsupported_claims(answer: str, trace: list) -> list[dict]:
     return claims
 
 
-def _supported_combinations(trace: list) -> list[set[str]]:
-    """Section sets the planner showed to be valid together."""
+def _supported_combinations(trace: list, fits_current: bool = False) -> list[set[str]]:
+    """Section sets the planner showed to be valid together. fits_current=True
+    keeps only sets that also need no change to current registrations (or whose
+    registrations could not be checked, which the answer then says)."""
     out = []
     for t in _plans(trace):
         result = _get(t, "result")
-        out += [set(o["section_ids"]) for o in result.get("options", [])]
+        out += [set(o["section_ids"]) for o in result.get("options", [])
+                if not fits_current or o.get("compatible_with_current_registration") is not False]
         rs = result.get("requested_sections") or {}
-        if rs.get("valid_together"):
+        if rs.get("valid_together") and not (fits_current and rs.get("fits_current_registration") is False):
             out.append(set(rs["section_ids"]))
     return out
 
@@ -301,7 +304,7 @@ def affirmed_request_claims(answer: str, request: str, trace: list) -> list[dict
         return []
     found = []
     sections = set(SECTION_ID.findall(request or ""))
-    if sections and not any(sections <= combo for combo in _supported_combinations(trace)):
+    if sections and not any(sections <= combo for combo in _supported_combinations(trace, fits_current=True)):
         found.append({"sentence": answer.strip()[:100], "section_ids": sorted(sections),
                       "reason": f"it confirms the student's question about {', '.join(sorted(sections))} "
                                 "without a plan_schedule result showing them valid together"})
@@ -347,9 +350,14 @@ def unaddressed_requested_issues(answer: str, trace: list) -> list[dict]:
         if not any(sid in w and _NOT_FOUND_WORDS.search(w) for w in _sentences(answer)):
             missing.append({"code": "NOT_FOUND", "section_ids": [sid],
                             "note": f"{sid} {rs.get('not_found_reason') or 'is not a section of the planned courses'}"})
-    for issue in rs.get("issues", []):
+    for issue in rs.get("issues", []) + (rs.get("registration_issues") or []):
         sids = issue.get("section_ids") or []
-        if issue["code"] == "TIME_CONFLICT" and len(sids) == 2:
+        if issue["code"] in ("SWITCHES_CURRENT_SECTION", "CONFLICTS_WITH_CURRENT_REGISTRATION",
+                             "CREDIT_LIMIT_WITH_CURRENT"):
+            said = any(all(x in s for x in sids) and (_REG_PROBLEM.search(s) or _REJECTION.search(s))
+                       for s in _sentences(answer))
+            note = issue["message"].rstrip(".")
+        elif issue["code"] == "TIME_CONFLICT" and len(sids) == 2:
             a, b = sids
             said = any(a in w and b in w and _CONFLICT_WORD.search(w) and not _asserts_compatibility(w)
                        for w in windows)
@@ -372,23 +380,51 @@ def requested_section_note(missing: list[dict]) -> str:
     return "About the sections you named: " + "; ".join(m["note"] for m in missing) + "."
 
 
-NOT_CHECKED_NOTE = ("Note: I couldn't check the classes you're already registered for this term, so please make "
-                    "sure these sections don't overlap with them before you register.")
+NOT_CHECKED_NOTE = ("Note: I couldn't check the classes you're already registered for this term, so none of these "
+                    "options is confirmed to fit with them. Please check for overlaps before you register.")
 
 
-def registration_notes(trace: list) -> list[str]:
-    """Fixed sentences about the student's current registrations, from the
-    latest plan_schedule result (integration audit 2026-10-19).
-
-    Options that repeat a registered course, overlap a current class or go
-    over the credit limit together with current classes are kept but ranked
-    last by the planner; these notes make sure the student is told. If the
-    backend could not list registrations, the student is told that instead.
-    Current classes are named by course and meeting time, not section ID."""
+def _latest_plan(trace: list) -> dict | None:
     plans = _plans(trace)
-    if not plans:
+    return _get(plans[-1], "result") if plans else None
+
+
+def option_label(option: dict) -> str:
+    return " + ".join(option.get("section_ids") or [])
+
+
+def option_change_reasons(option: dict, current: dict[str, dict]) -> list[str]:
+    """Why an option needs a change to the student's current registrations
+    (fixed phrases; current classes by course and meeting time)."""
+    reg = option.get("current_registration") or {}
+    reasons = [f"changes your current {cid} section" for cid in reg.get("switches_section_of", [])]
+    for c in reg.get("conflicts", []):
+        cur = current.get(c["current_course_id"])
+        when = f", {_when(cur)}" if cur else ""
+        reasons.append(f"{c['section_id']} overlaps your current {c['current_course_id']} class{when}")
+    if reg.get("exceeds_credit_limit"):
+        reasons.append(f"brings you to {reg.get('credit_hours_with_current')} credit hours with your current "
+                       f"classes, over your limit of {reg.get('credit_limit')}")
+    return reasons
+
+
+def registration_notes(trace: list, per_option: bool = True) -> list[str]:
+    """Fixed sentences about the student's current registrations, from the
+    latest plan_schedule result (integration audit 2026-10-19; reviewed in
+    the quality pass of 2026-10-20).
+
+    Options that need a change to current registrations (another section of
+    a registered course, an overlap with a current class, the credit limit
+    together with current classes) are kept but ranked last by the planner
+    (removing them is an open team decision). The notes keep the two groups
+    apart: options that fit, and options that would require changing current
+    registrations, with the reason. If the backend could not list
+    registrations, the student is told that no option is confirmed to fit.
+    per_option=False leaves out the per-option lines (the fallback answer
+    labels each option itself)."""
+    result = _latest_plan(trace)
+    if not result:
         return []
-    result = _get(plans[-1], "result")
     options = result.get("options") or []
     if not (options or result.get("requested_sections")):
         return []
@@ -398,28 +434,107 @@ def registration_notes(trace: list) -> list[str]:
     if not checked:
         return []
     notes = []
+    current = {s["course_id"]: s for s in result.get("current_registrations") or []}
     for a in result.get("already_registered") or []:
         notes.append(f"Note: you're already registered for {a['course_id']} this term "
-                     f"({_when(a.get('current_section') or {})}), so you don't need another section of it.")
-    current = {s["course_id"]: s for s in result.get("current_registrations") or []}
-    overlaps: dict[str, set[str]] = {}
-    over_limit = []
-    for o in options:
-        reg = o.get("current_registration") or {}
-        for c in reg.get("conflicts", []):
-            overlaps.setdefault(c["current_course_id"], set()).add(c["section_id"])
-        if reg.get("exceeds_credit_limit"):
-            over_limit.append(o)
-    for cid, sids in sorted(overlaps.items()):
-        when = f" ({_when(current[cid])})" if cid in current else ""
-        notes.append(f"Note: {', '.join(sorted(sids))} {'overlaps' if len(sids) == 1 else 'overlap'} your current "
-                     f"{cid} class{when}.")
-    if over_limit:
-        total = max(o["current_registration"]["credit_hours_with_current"] for o in over_limit)
-        notes.append(f"Note: together with the classes you're already registered for, "
-                     f"{'this option' if len(over_limit) == len(options) == 1 else 'some options'} would go over "
-                     f"your credit-hour limit (up to {total} credit hours).")
+                     f"({_when(a.get('current_section') or {})}).")
+    change = [o for o in options if o.get("compatible_with_current_registration") is False]
+    unconfirmed = [o for o in options if o.get("compatible_with_current_registration") is None]
+    fits = [o for o in options if o.get("compatible_with_current_registration") is True]
+    if per_option and change:
+        if fits:
+            notes.append("Note: these options fit with the classes you're already registered for: "
+                         + "; ".join(option_label(o) for o in fits) + ".")
+        else:
+            notes.append("Note: none of these options fits with the classes you're already registered for "
+                         "without a change.")
+        for o in change:
+            notes.append(f"Note: {option_label(o)} would require changing your current registration: "
+                         + "; ".join(option_change_reasons(o, current)) + ".")
+    if unconfirmed:
+        notes.append("Note: I couldn't confirm your credit hours together with your current classes for "
+                     + "; ".join(option_label(o) for o in unconfirmed) + ".")
     return notes
+
+
+# A sentence that tells the student a section needs a change to current
+# registrations: a problem word that is not negated ("overlaps your CIS376
+# class", "means switching your CIS376 section"; not "no overlap"), a misfit
+# ("doesn't fit with your current classes"), or a rejection ("you can't take").
+_REG_PROBLEM = re.compile(
+    r"\b(overlaps?|overlapping|conflicts?|conflicting|clash(es)?|switch(es|ing)?|swap(ping)?|drop(ping)?|"
+    r"chang(e|es|ed|ing) (your |the |a )?(current |existing )?(registration|registrations|section|sections|"
+    r"schedule|class|classes)|requires? (a )?change|would (require|mean) (a )?chang\w*|incompatible|"
+    r"credit[- ]hour limit|credit limit|over (your|the) (credit[- ]hour )?limit|too many credits)\b",
+    re.IGNORECASE)
+_REG_NEGATED = re.compile(r"(\b(no|not|never|without|zero)|n['’]t)\s+(\w+\s+){0,2}$", re.IGNORECASE)
+_REG_MISFIT = re.compile(
+    r"(\b(not|never)|n['’]t)\s+(\w+\s+){0,1}(fit|fits|work|works|compatible)\b"
+    r"|\b(can['’]?t|cannot|can not|shouldn['’]t|should not)\s+(\w+\s+){0,2}(take|use|add|register|pick|choose)\b",
+    re.IGNORECASE)
+# "fits your current schedule", "no conflict with your registered classes", ...
+_REG_SAFE = re.compile(
+    r"\b(fits?|fitting|works?|compatible|no (time )?(conflicts?|overlaps?|clash(es)?)|"
+    r"(won['’]t|doesn['’]t|don['’]t|does not|do not|will not) (conflict|overlap|clash))\b[^.!?]{0,50}"
+    r"\b(current|existing|registered|enrolled|already)\b", re.IGNORECASE)
+
+
+def _states_registration_problem(sentence: str) -> bool:
+    if _REG_MISFIT.search(sentence):
+        return True
+    return any(not _REG_NEGATED.search(sentence[: m.start()]) for m in _REG_PROBLEM.finditer(sentence))
+
+
+def registration_claims(answer: str, trace: list) -> list[dict]:
+    """Sentences that present an option as fine for the student's current
+    registrations when the planner says it is not, or when registrations could
+    not be checked (quality pass 2026-10-20). An option that would require a
+    change may be mentioned, but the same sentence must say there is a problem
+    (overlap, switching sections, credit limit, "doesn't fit", ...) or reject
+    it; "no overlap" or "fits your current schedule" does not count.""" 
+    result = _latest_plan(trace)
+    if not result:
+        return []
+    checked = result.get("current_registrations_checked")
+    options = result.get("options") or []
+    found = []
+    if checked:
+        ok_ids = {sid for o in options if o.get("compatible_with_current_registration") is True
+                  for sid in o["section_ids"]}
+        change_ids = {sid for o in options if o.get("compatible_with_current_registration") is False
+                      for sid in o["section_ids"]} - ok_ids
+        unconfirmed_ids = {sid for o in options if o.get("compatible_with_current_registration") is None
+                           for sid in o["section_ids"]} - ok_ids - change_ids
+        rs = result.get("requested_sections") or {}
+        for issue in rs.get("registration_issues") or []:
+            change_ids |= set(issue.get("section_ids") or [])
+        if rs.get("fits_current_registration") is None:
+            unconfirmed_ids |= set(rs.get("section_ids") or []) - change_ids
+        any_doubt = bool(change_ids or unconfirmed_ids)
+        for sentence in _sentences(answer):
+            ids = set(SECTION_ID.findall(sentence))
+            bad = sorted(ids & change_ids)
+            safe = (m := _REG_SAFE.search(sentence)) and not _NEG_BEFORE.search(sentence[: m.start()])
+            if bad and not _states_registration_problem(sentence):
+                found.append({"sentence": sentence[:300], "section_ids": bad,
+                              "reason": f"{', '.join(bad)} would require changing the student's current "
+                                        "registrations, but the sentence does not say so"})
+            elif safe and ids & unconfirmed_ids:
+                found.append({"sentence": sentence[:300], "section_ids": sorted(ids & unconfirmed_ids),
+                              "reason": "it says sections fit the student's current registrations, but that "
+                                        "could not be confirmed"})
+            elif safe and any_doubt and not ids:
+                found.append({"sentence": sentence[:300], "section_ids": [],
+                              "reason": "it says the options fit the student's current registrations, but some "
+                                        "would require a change or could not be confirmed"})
+    elif checked is False:
+        for sentence in _sentences(answer):
+            m = _REG_SAFE.search(sentence)
+            if m and not _NEG_BEFORE.search(sentence[: m.start()]):
+                found.append({"sentence": sentence[:300], "section_ids": sorted(set(SECTION_ID.findall(sentence))),
+                              "reason": "it says sections fit the student's current registrations, but they could "
+                                        "not be checked"})
+    return found
 
 
 def has_preference_wording(request: str) -> bool:

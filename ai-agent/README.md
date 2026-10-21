@@ -24,6 +24,8 @@ ai-agent/
 │   └── system.md       # system prompt
 ├── dev/
 │   ├── fake_mcp_server.py  # stand-in MCP server over data/*.json (until Workstream 2's is ready)
+│   ├── stdio_server.py     # launches it over stdio with a chosen data folder (--data-dir / UNA_DATA_DIR)
+│   ├── prepublish_check.py # privacy check before pushing or posting (see CLAUDE.md)
 │   ├── demo_plan.py        # planner demo over stdio (no LLM)
 │   └── chat.py             # full assistant demo over stdio with Ollama
 ├── tests/
@@ -438,3 +440,29 @@ Audit and details: `docs/workstream3-integration-audit.md`.
 reading is English and keyword based; options conflicting with current
 registrations are flagged, not removed (team decision); still single-turn,
 no partial schedules. Not integration-ready.
+
+### 2026-10-20 — Quality pass (branch `fix/ws3-quality-pass`)
+
+Details: `docs/workstream3-integration-audit.md` §10.
+
+**CONFIRMED (tests; no model was run, `heldout2` not opened)**
+- Current registrations: every option is labelled `fits_current_registration`,
+  `requires_registration_change`, `not_confirmed` or `not_checked`. An answer
+  that presents an option needing a change as fine (or claims options fit
+  when that was not checked) gets a revision, then the fallback answer, which
+  labels every option. Options are still never removed (team decision).
+- Constraints: strength is read per fragment, so a wish next to a mandatory
+  limit no longer weakens it; exceptions ("except on Tuesdays"), approximate
+  times ("around 4"), alternatives ("9 or 10"), dash ranges, "9.30" and
+  "10 at night" are handled; unclear mandatory limits are asked about.
+- R7: `--data-dir` for `dev/chat.py` and `dev/demo_plan.py`, passed to the
+  MCP subprocess. R9: per-request model statistics (`AssistantResult.llm_calls`).
+- Publication privacy: `CLAUDE.md` rules and `dev/prepublish_check.py` (commit
+  messages, added lines and PR texts; never prints what it finds;
+  `--install-hook` for a local commit-msg hook).
+- Tests: 584 passed, 1 skipped (was 478 + 1), Python 3.13 and 3.12; the privacy-check
+  tests are UTF-8 and line-ending safe on Windows.
+
+**LIMITS**: a wish next to a mandatory limit of the same kind does not rank
+options (one value per preference); clarification answers need conversation
+history (R2) to be useful in a real chat. Not integration-ready.

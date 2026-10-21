@@ -1,0 +1,9 @@
+{
+  "note": "Oracle answers for the DEVELOPMENT set (evaluation/cases.json is left unchanged), updated on 2026-10-20 for current-registration awareness. In data/enrollments.json, S10001 is already registered in SEC1001 (CIS376, Mon/Wed 09:30-10:45), which SEC2001 (CIS410, Mon/Wed 10:30-11:45) overlaps. The original oracle answers offered SEC2001 without saying so; since the quality pass of 2026-10-20 (agent/evidence.py: registration_claims) such an answer gets a forced revision. Only the final answer text changes; tool calls, expectations and scoring are unchanged. Applied by evaluation/run_eval.py: load_cases for every scoring version. Recorded live runs in docs/evidence are not affected (oracles are not used to score them).",
+  "oracle_answer": {
+    "E03": "CIS376 has no open section that starts at 10am or later, so it can't fit. For CIS410, SEC2002 (online) fits with the classes you're already registered for; SEC2001 (Mon/Wed 10:30-11:45) overlaps your current CIS376 class.",
+    "E08": "You can't take CIS450 yet: it needs CIS376 and CIS410 first. For CIS410, SEC2002 (online) fits with the classes you're already registered for; SEC2001 overlaps your current CIS376 class.",
+    "E10": "CIS999 does not exist in the catalog. For CIS410, SEC2002 (online) fits with the classes you're already registered for; SEC2001 overlaps your current CIS376 class.",
+    "E11": "Secure Systems is CIS410. SEC2002 (online) fits with the classes you're already registered for; SEC2001 (Mon/Wed 10:30-11:45) overlaps your current CIS376 class, so taking it would mean changing your current registration."
+  }
+}

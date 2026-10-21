@@ -5,7 +5,8 @@
 | Owner | Hassan Alnabres (`ehassan256417-afk`) |
 | Date | 2026-10-19 |
 | Audited code | PR #10 head `abc9cc9` (= PR #9 code `d4eacbf` + handoff docs) |
-| Fixes | branch `fix/integration-readiness` on the fork (no pull request yet) |
+| Fixes | branch `fix/integration-readiness` on the fork, PR #11 (CI passed) |
+| Quality pass | branch `fix/ws3-quality-pass` on the fork, on top of PR #11 (no pull request yet): current-registration labels, stricter constraint reading, R7 and R9 fixed (§10) |
 | Verdict | **Not integration-ready.** Workstream 3's own defects D1 to D6 are fixed and tested. Integration is blocked by work outside Workstream 3 (§6). Nothing here was tested against a real Workstream 1, 2 or 4 component, because none exists yet. |
 
 How the audit was done: code and test review of `ai-agent/`, the handoff
@@ -30,11 +31,14 @@ by Workstream 3 and still needs confirmation; OPEN = needs a team decision.
 | D5 | Per-request state was stored on the shared assistant object | High (isolation) | FIXED |
 | D6 | The MCP trace of a result contained other requests' calls | Medium (privacy in logs) | FIXED |
 | E1 | Existing enrollments were never read | High (correctness) | FIXED in Workstream 3 code; needs a WS2 tool and a team decision (§3.7) |
-| R1 to R9 | Remaining gaps | Mixed | OPEN (§5) |
+| Q1 | Options needing a change to current registrations could still be presented as fine | High (correctness) | FIXED in the quality pass (§10.1) |
+| Q2 | Constraint reading lost or misread limits in mixed, exception and unusual time wording | High (correctness) | FIXED in the quality pass (§10.2) |
+| R1 to R9 | Remaining gaps | Mixed | OPEN (§5); R7 and R9 FIXED in the quality pass (§10.3) |
 
 Tests: 428 passed, 1 skipped before; **478 passed, 1 skipped** after
-(Python 3.13 and 3.12, Linux). The skipped test is the opt-in live Ollama
-test.
+(Python 3.13 and 3.12, Linux; CI on PR #11: the same on Ubuntu and Windows).
+After the quality pass: **584 passed, 1 skipped** (§10.4). The skipped test
+is the opt-in live Ollama test.
 
 ---
 
@@ -323,10 +327,9 @@ classes flagged (planner stub).
     note after the model's unchanged answer.
 - The dataset oracle replays (dev, held-out, security and the 37 `heldout2`
   oracles, all scripted, no model) pass unchanged.
-- CI (Ubuntu and Windows, Python 3.12 and 3.13) has **not** run on this
-  branch: GitHub Actions has never run on the fork (0 workflow runs), so CI
-  will first run when a pull request is opened against the team repository.
-  Windows was not tested.
+- CI (GitHub Actions does not run on the fork) ran when PR #11 was opened,
+  on its head `5a598d5`: all four jobs passed (Ubuntu and Windows, Python
+  3.12 and 3.13), each with 478 passed, 1 skipped.
 
 ---
 
@@ -340,9 +343,9 @@ classes flagged (planner stub).
 | R4 | **Constraint reading is English, keyword based.** See §3.4 limits. | Needs real student wording to improve |
 | R5 | **"Not found" is recognised from error text** unless the server sends a structured `error_code`. | Needs the WS2 contract (§6) |
 | R6 | **Mock ID formats** (`SEC` + digits, letters + 3 digits) are hard-coded in several places. | Needs WS1's real formats (CRNs) |
-| R7 | **`dev/chat.py` does not pass `UNA_DATA_DIR`** to the stdio server (the MCP SDK passes only a few safe environment variables), so it always uses `data/`. `run_eval.py` passes it explicitly. | Development tool only; low priority |
+| R7 | **`dev/chat.py` does not pass `UNA_DATA_DIR`** to the stdio server (the MCP SDK passes only a few safe environment variables), so it always uses `data/`. `run_eval.py` passes it explicitly. | FIXED in the quality pass (§10.3) |
 | R8 | **Two original H20 records contain prompt text** (the model's real leak in that run). | Raw evidence must stay unchanged; the prompt is in the repository anyway |
-| R9 | **`OllamaLLM.stats` is per LLM object**, so concurrent requests sharing one object mix their timing statistics. | Evaluation-only; one object per request avoids it |
+| R9 | **`OllamaLLM.stats` is per LLM object**, so concurrent requests sharing one object mix their timing statistics. | FIXED in the quality pass (§10.3) |
 
 Security risks from the handoff (§6) still apply: keyword input inspection,
 paraphrased leaks not detected, multi-turn attacks untested, logging and
@@ -369,9 +372,11 @@ them passes.**
 
 Today (fake MCP server, no other workstream needed):
 
-1. `python -m pytest -q` from `ai-agent/` (expect 478 passed, 1 skipped).
-2. `python dev/demo_plan.py S10001 2027SP CIS376 CIS410` (planner over stdio
-   MCP, no model).
+1. `python -m pytest -q` from `ai-agent/` (expect 584 passed, 1 skipped on
+   the quality-pass branch; 478 on PR #11).
+2. `python dev/demo_plan.py S10001 2027SP CIS410` (planner over stdio MCP, no
+   model): SEC2002 fits, SEC2001 needs a change (it overlaps S10001's current
+   CIS376 class). Add `--data-dir <folder>` to use other data.
 3. With Ollama: `python dev/chat.py "I can't do Fridays at all. Plan CIS410."`
    then `python dev/chat.py "I can't do mornings. Plan CIS410."` (expect a
    clarification question, no schedule).
@@ -393,8 +398,8 @@ After integration (acceptance checks):
 
 ## 8. Constraints respected
 
-- PRs #5 to #10 were not modified or merged (heads `7a783fa`, `027abcb`,
-  `a0160b0`, `e7a3dbe`, `d4eacbf`, `abc9cc9`; all open).
+- PRs #5 to #11 were not modified or merged (heads `7a783fa`, `027abcb`,
+  `a0160b0`, `e7a3dbe`, `d4eacbf`, `abc9cc9`, `5a598d5`; all open).
 - No code of Workstreams 1, 2 or 4 was changed. The new tool exists only in
   Workstream 3's fake server and is a proposal.
 - `heldout2` was not run with a model and is identical to its
@@ -416,3 +421,179 @@ After integration (acceptance checks):
    code it ran on.
 4. Integrate with WS2, WS1 and WS4 and run the acceptance checks in §7.
 5. Then: partial schedules (R1) and conversation history (R2), if in scope.
+
+---
+
+## 10. Quality pass (branch `fix/ws3-quality-pass`, 2026-10-20)
+
+On top of PR #11 (`5a598d5`). Scope: Workstream 3 only. No model was run,
+`heldout2` was not opened (its oracles only ran inside the unit tests), and
+no evaluation evidence was changed.
+
+### 10.1 Q1: current registrations
+
+**Problem at PR #11.**
+- Options were flagged, but the model could still say "you can take SEC2001"
+  for an option that overlaps a current class; the fixed note came after a
+  contradicting answer.
+- The fallback answer listed such options under "Valid schedule options"
+  with no label.
+- An option that keeps the very section the student is already in counted
+  as "repeats a registered course".
+- A named section that overlaps a current class made `valid_together`
+  false, mixing academic validity with registration fit.
+
+**Fix.**
+- Every option has `registration_fit`:
+  - `fits_current_registration`: checked, no change needed;
+  - `requires_registration_change`: switching sections of a registered
+    course, an overlap with a current class, or the credit limit together
+    with current classes;
+  - `not_confirmed`: checked, but a current course's credits could not be
+    read;
+  - `not_checked`: registrations could not be listed.
+
+  The tool result also has a `registration_summary` with the groups.
+- Named sections get `fits_current_registration` and `registration_issues`,
+  apart from `valid_together`.
+- `registration_claims()` (`agent/evidence.py`) treats these like unsupported
+  claims (one revision, then the fallback answer):
+  - a sentence that names an option needing a change without stating the
+    problem;
+  - a sentence saying options fit current registrations when some do not,
+    or when that could not be checked or confirmed.
+
+  "No overlap" or "fits your current schedule" does not count as stating the
+  problem.
+- The fallback answer labels every option; the notes list the two groups
+  separately.
+
+**Unchanged.** Options are never removed (open team decision), and ranking
+still puts fitting options first.
+
+**Dev oracle answers.** The dev oracle answers for E03, E08, E10 and E11 now
+state the overlap. They are in `evaluation/dev_oracle_registrations.json`;
+`cases.json`, the expectations and the tool calls are unchanged.
+
+### 10.2 Q2: hard constraints
+
+**Problems at PR #11, all CONFIRMED by tests.** 23 of the new reading tests
+fail on PR #11's code.
+
+| Wording | At PR #11 | Now |
+|---|---|---|
+| "I must be done by 5pm, ideally by 3pm" | "conflicting", 15:00: the mandatory 17:00 was not enforced | 17:00 mandatory; the 15:00 wish is reported as not applied |
+| "I can't do Fridays. Ideally no Mondays either." | both days "conflicting": Friday not enforced | Friday mandatory; the Monday wish is reported |
+| "Avoid Fridays if you can, but Mondays are a must" | unclear and "conflicting": no question | clarification question |
+| "No classes before 10, except on Tuesdays" | no class before 10 **and avoid Tuesdays** | limit for some days only: asked if mandatory |
+| "Fridays are fine except after 3pm" | read as "start after 15:00" | some days only: not used as a limit |
+| "Fridays aren't a problem, but I can't do Mondays" | avoid Fridays and Mondays | avoid Mondays only |
+| "after 9.30", "5.30pm", "5:30 p.m." | cut by the sentence splitter ("after 9" = 09:00, **looser** than stated) | 09:30, 17:30 |
+| "10am-3pm", "12-1" | dash ranges were never found | read; "free all day except 12-1" is a busy range |
+| "around 10", "4ish", "9 or 10" | taken as exact | not exact: asked if mandatory |
+| "done by 10 at night" | AM or PM unclear | 22:00 |
+
+**How.** Strength is now read per fragment. If a preference has a mandatory
+fragment and nothing relaxes it, only the mandatory and unsoftened fragments
+decide its value and reliability. A wish stated next to a limit can neither
+weaken the limit nor hide an unclear one. A relaxation ("... fine if I have
+to", "Fridays aren't a problem") keeps the preference "conflicting", never
+mandatory, as before.
+
+**Check on development data.** On the 64 development requests (dev,
+held-out, security live set), the readings are identical to PR #11's.
+
+**Unreadable unsoftened limits.** A limit stated without a mandatory cue but
+as a limit ("No classes Monday mornings.", "I work 8-10") that cannot be read
+reliably, and that the model gave no value for, is asked about. It is treated
+like a readable unsoftened limit, which is mandatory when the model leaves it
+out.
+
+**Weakening check against PR #11.** All 775 request-like strings were
+compared: every request in the development datasets, plus every quoted string
+in the test files except `heldout2`. Five mandatory limits of PR #11 are no
+longer applied, and none of them is a real limit:
+- three are misreadings that PR #11 made up: "Fridays aren't a problem" was
+  read as "avoid Fridays";
+- two are planner sentences in test files, not student requests ("both meet
+  Tue/Thu 9:30-10:45" was read as "avoid Tuesday and Thursday").
+
+No limit a student stated became weaker.
+
+**Limits.**
+- A wish next to a mandatory limit of the same kind is not used for ranking,
+  because `plan_schedule` takes one value per preference; it is reported in
+  `constraint_changes`.
+- The clarification question needs R2 (conversation history) to be useful in
+  a real chat: today the student's reply is a new single-turn request.
+
+### 10.3 R7 and R9
+
+- **R7.** `dev/stdio_server.py` chooses the data folder: `--data-dir`, else
+  `UNA_DATA_DIR`, else `data/`. It checks the folder before starting and
+  passes it to the subprocess as its only extra environment variable.
+  `dev/chat.py` and `dev/demo_plan.py` use it and print the folder used.
+- **R9.** Each model call's record also goes to the log of the request in
+  progress (`agent/llm.py: call_log()`, a context variable).
+  `AssistantResult.llm_calls` holds only that request's calls.
+  - `run_eval.py` keeps those per case, once.
+  - `OllamaLLM.stats` is now capped (last 1,000 calls), so a long-running
+    server does not grow it forever.
+
+### 10.4 Tests
+
+**Local results:** 584 passed, 1 skipped, on Python 3.13 and on Python 3.12
+(fresh virtual environment from `requirements.txt`), Linux.
+
+**`tests/test_quality_pass.py` (78 tests):**
+- registration fit per option and for named sections;
+- answers that hide a needed change;
+- notes and fallback labels;
+- the dev oracle overlay;
+- 22 reading cases (negation, exceptions, ambiguous times, mixed hard and
+  soft);
+- 10 unclear mandatory cases, and 3 unreadable unsoftened limits;
+- assistant-level enforcement and clarification;
+- the data folder over stdio and through the command-line tools;
+- per-request model statistics under concurrency.
+
+**Existing tests updated on purpose (4):**
+- in `tests/test_evidence.py`, the scripted E08 and E11 answers of two
+  parametrized tests now state the overlap;
+- in `tests/test_integration_readiness.py`, two tests: the new note text, and
+  keeping the section the student is already in is no change.
+
+**`tests/test_prepublish_check.py` (28 tests):** see §10.5.
+
+**CI** runs when this branch's pull request is opened.
+
+### 10.5 Publication privacy
+
+New files:
+- **`CLAUDE.md`:** publication rules for Claude Code in this repository: no
+  session or conversation links, no credentials, no automatic attribution
+  footers or AI co-author trailers unless a policy requires them.
+- **`ai-agent/dev/prepublish_check.py`:** a repeatable check of commit
+  messages, added lines and PR or comment texts.
+  - Its findings print category and location only, never the matched text.
+  - `--install-hook` installs a local `commit-msg` hook.
+
+The rules in `CLAUDE.md` are instructions. The script and the hook enforce
+them only where they are run or installed.
+
+**Windows fix (2026-10-21).** The first CI run of PR #12 failed three of these
+tests on Windows; Ubuntu passed.
+- **Encoding:** test fixtures with an emoji were written in the Windows
+  default encoding (cp1252). The script also read git output that way. All
+  of them are now explicitly UTF-8.
+- **The hook:** the hook test required Unix executable bits, which Windows
+  does not have. Git for Windows runs hooks without them, so that assertion
+  now applies on Linux and macOS only.
+- **The hook file:** it is now written with LF line endings and
+  forward-slash paths, because a CRLF shell script would fail under Git for
+  Windows' `sh`.
+- **New tests:** two, covering the hook file format and UTF-8 commit messages
+  and files.
+- **Implicit encodings:** the privacy-check tests also pass with
+  `-X warn_default_encoding -W error::EncodingWarning`, so they no longer use
+  the platform default encoding anywhere.
