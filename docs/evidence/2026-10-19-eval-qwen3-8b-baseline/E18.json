@@ -1,0 +1,222 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T06:06:46+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E18",
+    "request": "I want to take CIS376 next spring.",
+    "student_id": "S10002",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "You cannot take CIS376 next spring because you haven't completed the prerequisite course CIS330. To enroll in CIS376, you must first complete CIS330. Let me know if you'd like help planning your schedule once you've taken CIS330.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 4,
+      "trace": [
+        {
+          "tool": "get_my_record",
+          "arguments": {},
+          "ok": true,
+          "result": {
+            "program": "Computer Science",
+            "max_credit_hours": 15,
+            "active": true,
+            "completed_courses": [
+              "CIS225",
+              "CIS236"
+            ]
+          }
+        },
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "CIS376",
+            "subject": "CIS"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS376",
+              "title": "Advanced Networking",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS330"
+              ],
+              "corequisites": []
+            }
+          ]
+        },
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS376"
+            ],
+            "earliest_start": "08:00",
+            "latest_end": "17:00",
+            "avoid_days": [
+              "FRI"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS376"
+            ],
+            "options": [],
+            "excluded": [
+              {
+                "course_id": "CIS376",
+                "code": "MISSING_PREREQUISITE",
+                "reason": "CIS376 requires CIS330."
+              }
+            ],
+            "combinations_checked": 0,
+            "rejection_counts": {},
+            "total_valid_options": 0,
+            "options_truncated": false,
+            "search_capped": false
+          }
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S10002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S10002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "CIS376",
+            "subject": "CIS"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S10002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S10002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS376"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS376",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ]
+    },
+    "wall_s": 166.98,
+    "llm_calls": [
+      {
+        "wall_s": 14.74,
+        "prompt_tokens": 971,
+        "output_tokens": 17,
+        "prompt_s": 5.07,
+        "output_s": 9.65,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 31.65,
+        "prompt_tokens": 1039,
+        "output_tokens": 31,
+        "prompt_s": 13.76,
+        "output_s": 17.86,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 49.49,
+        "prompt_tokens": 1122,
+        "output_tokens": 57,
+        "prompt_s": 16.43,
+        "output_s": 33.02,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 69.47,
+        "prompt_tokens": 1287,
+        "output_tokens": 60,
+        "prompt_s": 32.22,
+        "output_s": 37.22,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E18",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['get_my_record', 'plan_schedule', 'search_courses']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS376'] want=['CIS376']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[] want=[] excluded={'CIS376': 'MISSING_PREREQUISITE'} want={'CIS376': 'MISSING_PREREQUISITE'}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": true,
+        "detail": "missing_groups=[] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    }
+  }
+}

@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -40,21 +41,26 @@ async def main() -> None:
     p.add_argument("--term", default="2027SP")
     p.add_argument("--model", default="qwen3:8b")
     p.add_argument("--save", help="write the full result as JSON to this path")
+    p.add_argument("--no-think", action="store_true", help="turn off the model's reasoning trace (faster)")
+    p.add_argument("--num-ctx", type=int, help="context window to request from Ollama")
     a = p.parse_args()
 
-    llm = OllamaLLM(model=a.model)
+    llm = OllamaLLM(model=a.model, think=False if a.no_think else None, num_ctx=a.num_ctx)
+    started = time.perf_counter()
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)])
     async with Client(params) as client:
         assistant = SchedulingAssistant(BannerTools(client), llm, a.student, a.term)
         result = await assistant.run(a.request)
+    wall = round(time.perf_counter() - started, 2)
 
     print(result.answer)
     print()
     print(f"[grounded={result.grounded} model_calls={result.model_calls} "
-          f"tools={[t.tool for t in result.trace]} mcp_calls={len(result.mcp_calls)}]")
+          f"tools={[t.tool for t in result.trace]} mcp_calls={len(result.mcp_calls)} wall={wall}s]")
     if a.save:
         record = {"request": a.request, "student_id": a.student, "term_id": a.term,
-                  "model": a.model, "result": result.to_dict()}
+                  "model": a.model, "think": not a.no_think, "num_ctx": a.num_ctx,
+                  "wall_s": wall, "llm_calls": llm.stats, "result": result.to_dict()}
         Path(a.save).write_text(json.dumps(record, indent=2), encoding="utf-8")
         print(f"saved to {a.save}")
 

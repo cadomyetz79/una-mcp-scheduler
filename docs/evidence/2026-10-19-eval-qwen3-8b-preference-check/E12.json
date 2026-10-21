@@ -1,0 +1,116 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T06:48:41+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E12",
+    "request": "Find me the advanced networking class and plan it for spring.",
+    "student_id": "S10001",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "I found the advanced networking class: **CIS376 - Advanced Networking** (3 credit hours). Let me plan it for you in spring. Please provide your preferred days and times, or any constraints like avoiding certain days or times.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "advanced networking",
+            "subject": "CIS"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS376",
+              "title": "Advanced Networking",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS330"
+              ],
+              "corequisites": []
+            }
+          ]
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "advanced networking",
+            "subject": "CIS"
+          },
+          "is_error": false
+        }
+      ]
+    },
+    "wall_s": 69.3,
+    "llm_calls": [
+      {
+        "wall_s": 22.67,
+        "prompt_tokens": 972,
+        "output_tokens": 28,
+        "prompt_s": 5.95,
+        "output_s": 16.69,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 44.66,
+        "prompt_tokens": 1052,
+        "output_tokens": 50,
+        "prompt_s": 15.61,
+        "output_s": 29.02,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E12",
+    "pass": false,
+    "checks": {
+      "tool_use": {
+        "pass": false,
+        "detail": "missing=['plan_schedule'] forbidden=[] called=['search_courses']"
+      },
+      "course_ids": {
+        "pass": false,
+        "detail": "got=[] want=['CIS376']"
+      },
+      "outcome": {
+        "pass": false,
+        "detail": "options=[] want=[['SEC1001']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": false,
+        "detail": "missing_groups=[['SEC1001']] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T07:35:03+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E14",
+    "request": "Put me in SEC1001 for CIS376 and SEC2001 for CIS410.",
+    "student_id": "S10001",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "I cannot specify exact sections in my scheduling tool. However, I can help you find valid schedules using the course IDs you provided (CIS376 and CIS410). Let me check for available options.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS376",
+              "CIS410"
+            ],
+            "section_ids": [
+              "SEC1001",
+              "SEC2001"
+            ]
+          },
+          "ok": false,
+          "result": {
+            "error": "plan_schedule does not accept: section_ids. Allowed arguments: avoid_days, course_ids, earliest_start, latest_end, required_preferences. To check specific sections, call plan_schedule with their course_ids; it returns every valid section combination."
+          }
+        }
+      ],
+      "mcp_calls": []
+    },
+    "wall_s": 87.41,
+    "llm_calls": [
+      {
+        "wall_s": 37.59,
+        "prompt_tokens": 985,
+        "output_tokens": 51,
+        "prompt_s": 8.15,
+        "output_s": 29.37,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 48.37,
+        "prompt_tokens": 1095,
+        "output_tokens": 45,
+        "prompt_s": 22.13,
+        "output_s": 26.22,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E14",
+    "pass": false,
+    "checks": {
+      "tool_use": {
+        "pass": false,
+        "detail": "missing=['plan_schedule'] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": false,
+        "detail": "got=[] want=['CIS376', 'CIS410']"
+      },
+      "outcome": {
+        "pass": false,
+        "detail": "options=[] want=[['SEC1001', 'SEC2002']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": false,
+        "detail": "missing_groups=[['SEC2002'], ['overlap', 'conflict', 'same time', 'clash']] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 1
+    }
+  }
+}

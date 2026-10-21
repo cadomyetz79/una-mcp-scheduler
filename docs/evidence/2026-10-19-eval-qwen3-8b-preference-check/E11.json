@@ -1,0 +1,116 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T06:48:41+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E11",
+    "request": "I want to take the secure systems course next spring. Which sections can I get?",
+    "student_id": "S10001",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "The course \"Secure Systems\" (CIS410) is available. It is a 3-credit-hour course. To enroll, you must have completed CIS330 as a prerequisite. Let me know if you'd like to proceed with scheduling this course.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "secure systems",
+            "subject": "CIS"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS410",
+              "title": "Secure Systems",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS330"
+              ],
+              "corequisites": []
+            }
+          ]
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "secure systems",
+            "subject": "CIS"
+          },
+          "is_error": false
+        }
+      ]
+    },
+    "wall_s": 73.83,
+    "llm_calls": [
+      {
+        "wall_s": 22.77,
+        "prompt_tokens": 977,
+        "output_tokens": 28,
+        "prompt_s": 6.49,
+        "output_s": 16.24,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 49.37,
+        "prompt_tokens": 1057,
+        "output_tokens": 56,
+        "prompt_s": 15.21,
+        "output_s": 34.13,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E11",
+    "pass": false,
+    "checks": {
+      "tool_use": {
+        "pass": false,
+        "detail": "missing=['plan_schedule'] forbidden=[] called=['search_courses']"
+      },
+      "course_ids": {
+        "pass": false,
+        "detail": "got=[] want=['CIS410']"
+      },
+      "outcome": {
+        "pass": false,
+        "detail": "options=[] want=[['SEC2001'], ['SEC2002']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": false,
+        "detail": "missing_groups=[['SEC2001'], ['SEC2002']] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0
+    }
+  }
+}

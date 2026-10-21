@@ -279,3 +279,38 @@ etc. are now soft unless listed in `required_preferences`.
 **OPEN QUESTION**
 - Should the student's wishes be weighted (for example "no Fridays" matters
   more than "after 10")? Current ranking treats each miss equally.
+
+### 2026-10-19 — Live Ollama runs and evaluation (branch `feature/ollama-live-eval`)
+
+**CONFIRMED (live model, raw records in `docs/evidence/`)**
+- Ollama 0.40.6 runs qwen3:8b in the cloud sandbox on CPU. Default settings
+  were killed by the 5.84 GiB memory limit; context 4096 with a q8_0 KV cache
+  works (`2026-10-19-ollama-environment-and-first-runs.md`).
+- `OllamaLLM` gained `think` (False turns off qwen3 reasoning; ~190 extra
+  tokens even for "OK" otherwise) and `num_ctx`, and records tokens and
+  timings per model call. `dev/chat.py` has `--no-think`, `--num-ctx`.
+- `evaluation/`: 19 fixed requests, a deterministic scorer, a runner with
+  `--resume` / `--summarize-only` / `--no-preference-check`, and
+  `compare.py`. The oracle (ideal tool calls, no model) scores 19/19 in the
+  tests; that validates the dataset only.
+- Baseline (no check): **8/19** cases; the model classified mandatory vs.
+  soft preferences correctly in 1 of 6 requests that state one, wrong in both
+  directions.
+- `agent/preference_language.py` + assistant: the student's own wording, per
+  preference, corrects the model's mandatory/soft choice when it is clear;
+  ambiguous or conflicting wording changes nothing. With the check:
+  **13/19**; applied classification 7/7; no new errors; model tool calls
+  identical to the baseline in all 19 cases.
+- Both runs: 0 hard-constraint violations among returned options; grounded
+  18/19; latency median 143 s (baseline) and 154 s (check) per case.
+- Rejected tool arguments now get a specific message (`b394782`). A single
+  live rerun of E14 still fails: the model promised to check and stopped.
+
+**OPEN / NEXT** (details in `docs/evidence/2026-10-19-eval-report.md`)
+- In 5 of 6 remaining failures the model ends its turn without calling
+  `plan_schedule`. Proposed: a deterministic planning-required check.
+- E09: the model said a course is offered when it is not; the grounding
+  check only covers section IDs.
+- The preference rules were written alongside the cases; real student
+  wording is needed before claiming accuracy. One run per configuration.
+

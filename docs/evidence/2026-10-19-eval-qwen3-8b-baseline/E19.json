@@ -1,0 +1,182 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T06:06:46+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E19",
+    "request": "Plan CIS410 for me next spring.",
+    "student_id": "S10003",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "I cannot schedule CIS410 for you next spring because you are missing the prerequisite course CIS330. To enroll in CIS410, you must first complete CIS330. Consider taking CIS330 in a future term to meet this requirement.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 3,
+      "trace": [
+        {
+          "tool": "get_my_record",
+          "arguments": {},
+          "ok": true,
+          "result": {
+            "program": "Information Technology",
+            "max_credit_hours": 18,
+            "active": false,
+            "completed_courses": []
+          }
+        },
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS410"
+            ],
+            "earliest_start": "08:00",
+            "latest_end": "17:00",
+            "avoid_days": [
+              "FRI"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS410"
+            ],
+            "options": [],
+            "excluded": [
+              {
+                "course_id": "CIS410",
+                "code": "MISSING_PREREQUISITE",
+                "reason": "CIS410 requires CIS330."
+              }
+            ],
+            "combinations_checked": 0,
+            "rejection_counts": {},
+            "total_valid_options": 0,
+            "options_truncated": false,
+            "search_capped": false
+          }
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S10003"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S10003"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S10003"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S10003"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS410"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS410",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ]
+    },
+    "wall_s": 127.06,
+    "llm_calls": [
+      {
+        "wall_s": 14.87,
+        "prompt_tokens": 970,
+        "output_tokens": 17,
+        "prompt_s": 5.16,
+        "output_s": 9.67,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 45.28,
+        "prompt_tokens": 1026,
+        "output_tokens": 57,
+        "prompt_s": 11.98,
+        "output_s": 33.27,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 65.15,
+        "prompt_tokens": 1191,
+        "output_tokens": 56,
+        "prompt_s": 30.37,
+        "output_s": 34.75,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E19",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['get_my_record', 'plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS410'] want=['CIS410']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[] want=[] excluded={'CIS410': 'MISSING_PREREQUISITE'} want={'CIS410': 'MISSING_PREREQUISITE'}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": true,
+        "detail": "missing_groups=[] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    }
+  }
+}

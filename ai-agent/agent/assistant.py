@@ -17,6 +17,11 @@ Guardrails enforced in code, not in the prompt:
    plan_schedule option. If not, the model is asked to revise once; if it
    still fails, the answer is returned flagged grounded=False.
 4. Step limit: the loop stops after max_steps model calls.
+5. Preference strength check (agent/preference_language.py): when the
+   student's own words clearly mark a stated preference as optional ("if
+   possible") or mandatory ("can't"), that wins over the model's
+   required_preferences. Ambiguous wording leaves the model's choice alone.
+   Every correction is reported in the tool result and the trace.
 """
 
 from __future__ import annotations
@@ -32,12 +37,15 @@ from scheduling.models import VALID_DAYS
 from .banner_tools import BannerTools, ToolCallError
 from .llm import LLM
 from .planner import PREFERENCE_NAMES, Preferences, plan_schedules
+from .preference_language import reconcile
 
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "system.md"
 
 # WORKING ASSUMPTION: section IDs look like the mock data's ("SEC1001").
 SECTION_ID_PATTERN = re.compile(r"\bSEC\d+\b")
 _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# Argument names that would select a person; rejected with the privacy message.
+_IDENTITY_ARG = re.compile(r"student|user|person|^id$|email|name", re.IGNORECASE)
 MAX_COURSES = 8
 
 TOOL_SPECS = [
@@ -142,12 +150,15 @@ class SchedulingAssistant:
         student_id: str,
         term_id: str,
         max_steps: int = 8,
+        check_preference_language: bool = True,
     ):
         self.tools = tools
         self.llm = llm
         self.student_id = student_id  # bound identity; never taken from the model
         self.term_id = term_id
         self.max_steps = max_steps
+        self.check_preference_language = check_preference_language
+        self._request = ""
         self.system_prompt = PROMPT_PATH.read_text(encoding="utf-8").replace("{term_id}", term_id)
 
     # ------------------------------------------------------------ tools
@@ -156,11 +167,16 @@ class SchedulingAssistant:
         if name not in _ALLOWED_ARGS:
             raise ToolArgumentError(f"Unknown tool '{name}'.")
         extra = set(args) - _ALLOWED_ARGS[name]
-        if extra:
-            raise ToolArgumentError(
-                f"Unexpected argument(s): {', '.join(sorted(extra))}. "
-                "This assistant can only use the signed-in student's records."
-            )
+        if not extra:
+            return
+        allowed = ", ".join(sorted(_ALLOWED_ARGS[name])) or "none"
+        message = f"{name} does not accept: {', '.join(sorted(extra))}. Allowed arguments: {allowed}."
+        if any(_IDENTITY_ARG.search(a) for a in extra):
+            message += " This assistant can only use the signed-in student's records."
+        elif name == "plan_schedule" and "section_ids" in extra:
+            message += (" To check specific sections, call plan_schedule with their course_ids;"
+                        " it returns every valid section combination.")
+        raise ToolArgumentError(message)
 
     async def _get_my_record(self) -> dict:
         s = await self.tools.student(self.student_id)
@@ -208,6 +224,12 @@ class SchedulingAssistant:
         if not isinstance(required, list) or any(r not in PREFERENCE_NAMES for r in required):
             raise ToolArgumentError(f"required_preferences must be a list of {list(PREFERENCE_NAMES)}.")
 
+        stated = [k for k, v in (("earliest_start", earliest_start), ("latest_end", latest_end),
+                                 ("avoid_days", days)) if v]
+        corrections: list[dict] = []
+        if self.check_preference_language:
+            required, corrections = reconcile(self._request, stated, list(required))
+
         plan = await plan_schedules(
             self.tools,
             self.student_id,
@@ -217,6 +239,14 @@ class SchedulingAssistant:
         )
         result = plan.to_dict()
         result.pop("student_id", None)
+        result["preferences_applied"] = {
+            "earliest_start": earliest_start or None,
+            "latest_end": latest_end or None,
+            "avoid_days": days,
+            "required": sorted(required),
+        }
+        if corrections:
+            result["preference_corrections"] = corrections
         return result
 
     async def _run_tool(self, name: str, args: dict) -> tuple[bool, Any]:
@@ -242,6 +272,7 @@ class SchedulingAssistant:
         return ids
 
     async def run(self, request: str) -> AssistantResult:
+        self._request = request
         messages: list[dict] = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": request},

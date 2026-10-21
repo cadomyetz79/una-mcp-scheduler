@@ -210,3 +210,26 @@ async def test_live_ollama_end_to_end():
     assert result.stopped_reason == "answered"
     assert any(t.tool == "plan_schedule" for t in result.trace)
     assert result.grounded
+
+
+async def test_undeclared_section_ids_get_a_helpful_error():
+    # Live baseline E14: qwen3:8b sent section_ids and got a privacy message
+    # that did not explain the problem, then gave up.
+    result, llm = await run([
+        {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"], section_ids=["SEC1001"])]},
+        {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"])]},
+        {"content": "SEC1001 + SEC2002 is the valid option."},
+    ])
+    error = tool_results(llm, 1)[0]["error"]
+    assert "section_ids" in error and "course_ids" in error and "Allowed arguments" in error
+    assert "signed-in student" not in error
+    assert result.trace[1].ok and result.grounded
+
+
+async def test_identity_arguments_still_get_the_privacy_message():
+    result, llm = await run([
+        {"tool_calls": [call("get_my_record", student_id="S10002")]},
+        {"content": "I can only access your own record."},
+    ])
+    assert "signed-in student" in tool_results(llm, 1)[0]["error"]
+    assert result.mcp_calls == []

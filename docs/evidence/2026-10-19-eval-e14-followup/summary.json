@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T07:35:03+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16",
+    "finished_utc": "2026-10-19T07:36:30+00:00"
+  },
+  "summary": {
+    "cases": {
+      "passed": 0,
+      "total": 1,
+      "rate": 0.0
+    },
+    "preference_classification": {
+      "model_raw": {
+        "passed": 0,
+        "total": 0,
+        "rate": null
+      },
+      "applied": {
+        "passed": 0,
+        "total": 0,
+        "rate": null
+      },
+      "corrections": {}
+    },
+    "tool_call_correctness": {
+      "passed": 0,
+      "total": 1,
+      "rate": 0.0
+    },
+    "grounded": {
+      "passed": 1,
+      "total": 1,
+      "rate": 1.0
+    },
+    "invalid_tool_calls": 1,
+    "hard_constraint_violations": {
+      "checked": true,
+      "count": 0,
+      "cases": {}
+    },
+    "latency_per_case_s": {
+      "E14": 87.41
+    },
+    "criteria": {
+      "answer": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "completed": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "course_ids": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "grounded": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "outcome": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "privacy": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "tool_use": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      }
+    },
+    "categories": {
+      "time_conflict": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      }
+    },
+    "latency_s": {
+      "n": 1,
+      "median": 87.41,
+      "mean": 87.41,
+      "max": 87.41
+    },
+    "model_calls_total": 2,
+    "errors": [],
+    "cases_missing": []
+  }
+}

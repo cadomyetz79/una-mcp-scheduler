@@ -20,6 +20,7 @@ import asyncio
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Protocol
@@ -56,13 +57,21 @@ class OllamaLLM:
         host: str | None = None,
         timeout: float = 300,
         temperature: float = 0.0,
+        think: bool | None = None,
+        num_ctx: int | None = None,
     ):
+        """think: None leaves the model's default; False turns off qwen3's
+        reasoning trace (much faster on CPU). num_ctx: context window to request.
+        Every call's token counts and timings are kept in self.stats."""
         self.model = model
         self.host = (host or os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
         if not self.host.startswith("http"):
             self.host = "http://" + self.host
         self.timeout = timeout
         self.temperature = temperature
+        self.think = think
+        self.num_ctx = num_ctx
+        self.stats: list[dict] = []
 
     def _post(self, payload: dict) -> dict:
         req = urllib.request.Request(
@@ -79,15 +88,34 @@ class OllamaLLM:
             raise LLMError(f"Cannot reach Ollama at {self.host} ({e.reason}). Is it running?") from e
 
     async def chat(self, messages: list[dict], tools: list[dict]) -> dict:
+        options: dict[str, Any] = {"temperature": self.temperature}
+        if self.num_ctx:
+            options["num_ctx"] = self.num_ctx
         payload = {
             "model": self.model,
             "messages": messages,
             "tools": tools,
             "stream": False,
-            "options": {"temperature": self.temperature},
+            "options": options,
         }
+        if self.think is not None:
+            payload["think"] = self.think
+        started = time.perf_counter()
         data = await asyncio.to_thread(self._post, payload)
         msg = data.get("message") or {}
+        ns = 1e9
+        self.stats.append(
+            {
+                "wall_s": round(time.perf_counter() - started, 2),
+                "prompt_tokens": data.get("prompt_eval_count"),
+                "output_tokens": data.get("eval_count"),
+                "prompt_s": round((data.get("prompt_eval_duration") or 0) / ns, 2),
+                "output_s": round((data.get("eval_duration") or 0) / ns, 2),
+                "load_s": round((data.get("load_duration") or 0) / ns, 2),
+                "thinking_chars": len(msg.get("thinking") or ""),
+                "tool_calls": len(msg.get("tool_calls") or []),
+            }
+        )
         return {
             "role": "assistant",
             "content": _THINK.sub("", msg.get("content") or "").strip(),
