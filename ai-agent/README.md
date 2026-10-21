@@ -25,6 +25,7 @@ ai-agent/
 ├── dev/
 │   ├── fake_mcp_server.py  # stand-in MCP server over data/*.json (until Workstream 2's is ready)
 │   ├── stdio_server.py     # launches it over stdio with a chosen data folder (--data-dir / UNA_DATA_DIR)
+│   ├── prepublish_check.py # privacy check before pushing or posting (see CLAUDE.md)
 │   ├── demo_plan.py        # planner demo over stdio (no LLM)
 │   └── chat.py             # full assistant demo over stdio with Ollama
 ├── tests/
@@ -456,7 +457,10 @@ Details: `docs/workstream3-integration-audit.md` §10.
   "10 at night" are handled; unclear mandatory limits are asked about.
 - R7: `--data-dir` for `dev/chat.py` and `dev/demo_plan.py`, passed to the
   MCP subprocess. R9: per-request model statistics (`AssistantResult.llm_calls`).
-- Tests: 553 passed, 1 skipped (was 478 + 1), Python 3.13 and 3.12.
+- Publication privacy: `CLAUDE.md` rules and `dev/prepublish_check.py` (commit
+  messages, added lines and PR texts; never prints what it finds;
+  `--install-hook` for a local commit-msg hook).
+- Tests: 582 passed, 1 skipped (was 478 + 1), Python 3.13 and 3.12.
 
 **LIMITS**: a wish next to a mandatory limit of the same kind does not rank
 options (one value per preference); clarification answers need conversation
