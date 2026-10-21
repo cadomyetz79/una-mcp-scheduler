@@ -222,6 +222,9 @@ class Reading:
     # wishes stated next to a mandatory limit of the same kind that one plan_schedule
     # value cannot carry too ("must be done by 5pm, ideally by 3pm": 15:00)
     soft_unapplied: tuple = ()
+    # stated as a limit (negation, busy time, "except", "only"), even without a
+    # mandatory cue: "No classes Monday mornings." (see resolve())
+    limit_like: bool = False
 
     def to_dict(self) -> dict:
         v = list(self.value) if isinstance(self.value, tuple) else self.value
@@ -494,8 +497,15 @@ def _fragments(ex: _Extractor) -> tuple[list[dict], list[tuple[dict, _Parsed, st
     return frags, items
 
 
+_LIMIT_WORDS = re.compile(rf"{_NEG}|{_BUSY}|\b(?:except|only|off-limits|impossible)\b", re.I)
+
+
+def _limit_like(group: list[tuple[dict, _Parsed, str]]) -> bool:
+    return any(_LIMIT_WORDS.search(f["text"]) for f, _, _ in group)
+
+
 def _time_reading(pref: str, group: list[tuple[dict, _Parsed, str]], verdict: str, mentioned: bool) -> Reading:
-    r = Reading(pref, mentioned=mentioned, verdict=verdict)
+    r = Reading(pref, mentioned=mentioned, verdict=verdict, limit_like=_limit_like(group))
     entries = [e for _, p, _ in group for e in p.times[pref]]
     vague = any(pref in p.vague for _, p, _ in group)
     values = {v for v, _, _ in entries if v}
@@ -520,7 +530,7 @@ def _time_reading(pref: str, group: list[tuple[dict, _Parsed, str]], verdict: st
 
 def _day_reading(group: list[tuple[dict, _Parsed, str]], verdict: str, mentioned: bool,
                  relaxed_anywhere: set[str]) -> Reading:
-    r = Reading("avoid_days", mentioned=mentioned, verdict=verdict)
+    r = Reading("avoid_days", mentioned=mentioned, verdict=verdict, limit_like=_limit_like(group))
     avoid = set().union(*(p.avoid for _, p, _ in group)) if group else set()
     only = set().union(*(p.only for _, p, _ in group)) if group else set()
     problem = next((p.day_problem for _, p, _ in group if p.day_problem), "")
@@ -637,6 +647,12 @@ def resolve(request: str, earliest_start: str | None, latest_end: str | None, av
         if r.verdict == "required" and not r.reliable:
             clarify.append(_clarify_item(r))
             continue
+        if r.verdict == "unknown" and not r.reliable and r.limit_like and not model[pref] \
+                and r.kind != "days":
+            # an unsoftened limit that cannot be read, and the model gave no value either:
+            # treated as mandatory (as when it is readable), so it is asked about, not dropped
+            clarify.append(_clarify_item(r))
+            continue
         if not r.reliable or (pref == "avoid_days" and not r.value):
             continue
         if r.soft_unapplied:
@@ -663,9 +679,11 @@ def resolve(request: str, earliest_start: str | None, latest_end: str | None, av
 
 
 def clarifications(request: str) -> list[dict]:
-    """Required constraints that cannot be read reliably (what resolve() would ask about)."""
+    """Limits that cannot be read reliably and would have to be enforced: what
+    resolve() asks about when the model passed no value."""
     return [_clarify_item(r) for r in extract(request).values()
-            if r.mentioned and r.verdict == "required" and not r.reliable]
+            if r.mentioned and not r.reliable and (r.verdict == "required" or (
+                r.verdict == "unknown" and r.limit_like and r.kind != "days"))]
 
 
 def system_arguments(request: str) -> dict | None:

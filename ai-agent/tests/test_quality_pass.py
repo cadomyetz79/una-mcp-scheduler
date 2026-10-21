@@ -333,6 +333,21 @@ def test_an_uncertain_mandatory_limit_is_asked_about(text, pref, kind):
     assert constraints.system_arguments(text) is None
 
 
+@pytest.mark.parametrize("text,prefs", [
+    ("No classes Monday mornings.", {"earliest_start", "avoid_days"}),
+    ("No classes after 10.", {"latest_end"}),
+    ("I work 8-10, so nothing then.", {"earliest_start", "latest_end"}),
+])
+def test_an_unreadable_unsoftened_limit_the_model_left_out_is_asked_about(text, prefs):
+    # no mandatory cue, but stated as a limit: treated like a readable one would be (mandatory when the
+    # model gives nothing), so it is asked about instead of being dropped
+    assert {c["preference"] for c in constraints.resolve(text, None, None, [], []).clarify} == prefs
+    assert {c["preference"] for c in constraints.clarifications(text)} == prefs
+    # when the model passed its own value, its reading stands for that preference
+    with_model = constraints.resolve(text, "12:00", "20:00", ["MON"], [])
+    assert {c["preference"] for c in with_model.clarify} == set()
+
+
 @pytest.mark.parametrize("text", [
     "Fridays are fine except after 3pm.",           # a wish, not a limit: the model's reading stands
     "Plan CIS340, ideally not too early.",
