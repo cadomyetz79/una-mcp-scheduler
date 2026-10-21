@@ -6,7 +6,10 @@ Both runs are rescored with the current scorer from their saved case files.
 For every case it reports whether the MODEL's own tool calls were the same
 in both runs. That separates two causes of a different result:
   - same model calls, different outcome  -> caused by the system change
-  - different model calls                -> the model behaved differently
+  - B's calls start with exactly A's calls and B used a recovery (nudge /
+    system-run tool) -> "intervention": the model behaved the same until the
+    system stepped in, and the extra calls followed from that
+  - otherwise                            -> the model behaved differently
                                              (variance), not the change alone
 """
 
@@ -49,6 +52,14 @@ def compare(cases: list[dict], a: dict, b: dict) -> list[dict]:
         sa, sb = a[cid]["score"], b[cid]["score"]
         ra, rb = a[cid]["record"], b[cid]["record"]
         same_calls = _calls(ra) == _calls(rb)
+        ca, cb = _calls(ra), _calls(rb)
+        recovered = bool((rb.get("result") or {}).get("recoveries"))
+        if same_calls:
+            cause = "system"
+        elif recovered and cb[:len(ca)] == ca:
+            cause = "intervention"
+        else:
+            cause = "model_variance"
         if sa["pass"] == sb["pass"]:
             change = "same"
         elif sb["pass"]:
@@ -60,7 +71,7 @@ def compare(cases: list[dict], a: dict, b: dict) -> list[dict]:
             "category": case["category"],
             "pass": [sa["pass"], sb["pass"]],
             "change": change,
-            "cause": "system" if same_calls else "model_variance",
+            "cause": cause,
             "failed": [[k for k, c in s["checks"].items() if not c["pass"]] for s in (sa, sb)],
             "model_required_correct": [s.get("extra", {}).get("model_required_correct") for s in (sa, sb)],
             "corrections": sb.get("extra", {}).get("corrections", []),
@@ -81,7 +92,9 @@ def to_markdown(rows: list[dict], labels: list[str]) -> str:
         f"{B} {sum(r['pass'][1] for r in done)}/{len(done)}",
         f"- Fixed in {B}: {[r['id'] for r in done if r['change'] == 'fixed']}",
         f"- New errors in {B}: {[r['id'] for r in done if r['change'] == 'new_error']}",
-        f"- Cases where the model's own tool calls differed between runs: "
+        f"- Cases where calls differed only after a recovery (intervention): "
+        f"{[r['id'] for r in done if r['cause'] == 'intervention']}",
+        f"- Cases where the model's own tool calls differed otherwise (variance): "
         f"{[r['id'] for r in done if r['cause'] == 'model_variance']}",
         "",
         f"| Case | Category | {A} | {B} | Change | Cause | Failed checks ({A} / {B}) | Corrections in {B} | Wall s |",

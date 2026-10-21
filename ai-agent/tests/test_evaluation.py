@@ -99,7 +99,7 @@ def test_hard_constraint_check_catches_an_invalid_option(ds):
 async def test_scorer_flags_ungrounded_answer_and_missing_tool():
     case = copy.deepcopy(BY_ID["E01"])
     case["oracle"] = [{"content": "Take SEC1001 and SEC2001."}, {"content": "Take SEC2001."}]
-    record = await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server)
+    record = await run_case(case, DATA["term_id"], ScriptedLLM(case["oracle"]), server, check_evidence=False)
     checks = score_case(BY_ID["E01"], record)["checks"]
     assert not checks["grounded"]["pass"]
     assert not checks["tool_use"]["pass"]
@@ -170,3 +170,20 @@ async def test_compare_separates_system_effect_from_model_variance(tmp_path):
     assert rows["E02"]["change"] == "fixed" and rows["E02"]["cause"] == "system"
     assert rows["E02"]["model_required_correct"] == [False, False]
     assert rows["E01"]["change"] == "same"
+
+
+def test_compare_labels_calls_added_after_a_recovery_as_intervention():
+    from evaluation.compare import compare
+
+    def rec(trace, recoveries=()):
+        return {"record": {"result": {"trace": trace, "recoveries": list(recoveries)}, "wall_s": 1},
+                "score": {"pass": False, "checks": {}, "extra": {}}}
+
+    search = {"tool": "search_courses", "arguments": {"query": "CIS330"}, "ok": True, "result": []}
+    plan = {"tool": "plan_schedule", "arguments": {"course_ids": ["CIS330"]}, "ok": True, "result": {}}
+    a = {"E09": rec([search])}
+    b = {"E09": rec([search, plan], [{"type": "nudge"}])}
+    b["E09"]["score"]["pass"] = True
+    c = {"E09": rec([plan])}
+    assert compare([BY_ID["E09"]], a, b)[0]["cause"] == "intervention"
+    assert compare([BY_ID["E09"]], a, c)[0]["cause"] == "model_variance"

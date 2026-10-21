@@ -1,0 +1,260 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T07:52:29+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "E03",
+    "request": "I need CIS376 and CIS410 next spring, but I work every morning so I can't take any class that starts before 10am.",
+    "student_id": "S10001",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "I found two valid options for your schedule:\n\n1. **CIS410 (SEC2001)**  \n   - Days: Monday, Wednesday  \n   - Time: 10:30 AM - 11:45 AM  \n   - Location: Building B 201  \n   - Total Credit Hours: 3  \n   - Meets all your preferences.\n\n2. **CIS410 (SEC2002)**  \n   - Mode: Online  \n   - Total Credit Hours: 3  \n   - Meets all your preferences.\n\nHowever, there are no available sections for **CIS376** that fit your time preference of starting no earlier than 10:00 AM. You might want to check if there are any other sections or consider adjusting your time preference if possible.",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "earliest_start": "10:00",
+            "course_ids": [
+              "CIS376",
+              "CIS410"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS376",
+              "CIS410"
+            ],
+            "options": [
+              {
+                "section_ids": [
+                  "SEC2001"
+                ],
+                "total_credit_hours": 3,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC2001",
+                    "course_id": "CIS410",
+                    "modality": "in_person",
+                    "seats_available": 5,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "10:30",
+                        "end": "11:45",
+                        "location": "Building B 201"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 1
+              },
+              {
+                "section_ids": [
+                  "SEC2002"
+                ],
+                "total_credit_hours": 3,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC2002",
+                    "course_id": "CIS410",
+                    "modality": "online",
+                    "seats_available": 22,
+                    "meetings": []
+                  }
+                ],
+                "rank": 2
+              }
+            ],
+            "excluded": [
+              {
+                "course_id": "CIS376",
+                "code": "NO_SECTION_MATCHES_PREFERENCES",
+                "reason": "No open CIS376 section fits the requested times/days."
+              }
+            ],
+            "combinations_checked": 2,
+            "rejection_counts": {},
+            "total_valid_options": 2,
+            "options_truncated": false,
+            "search_capped": false,
+            "preferences_applied": {
+              "earliest_start": "10:00",
+              "latest_end": null,
+              "avoid_days": [],
+              "required": [
+                "earliest_start"
+              ]
+            },
+            "preference_corrections": [
+              {
+                "preference": "earliest_start",
+                "model_said": "soft",
+                "applied": "required",
+                "evidence": [
+                  "can't"
+                ]
+              }
+            ]
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S10001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S10001"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS376"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS410"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS376",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS410",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": []
+    },
+    "wall_s": 242.4,
+    "llm_calls": [
+      {
+        "wall_s": 35.46,
+        "prompt_tokens": 994,
+        "output_tokens": 44,
+        "prompt_s": 8.79,
+        "output_s": 26.65,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 205.42,
+        "prompt_tokens": 1451,
+        "output_tokens": 174,
+        "prompt_s": 90.97,
+        "output_s": 114.41,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "E03",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS376', 'CIS410'] want=['CIS376', 'CIS410']"
+      },
+      "preferences": {
+        "pass": true,
+        "detail": "got={'earliest_start': '10:00'} want={'earliest_start': '10:00'}"
+      },
+      "required": {
+        "pass": true,
+        "detail": "applied=['earliest_start'] model=[] want=['earliest_start']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[['SEC2001'], ['SEC2002']] want=[['SEC2001'], ['SEC2002']] excluded={'CIS376': 'NO_SECTION_MATCHES_PREFERENCES'} want={'CIS376': 'NO_SECTION_MATCHES_PREFERENCES'}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "answer": {
+        "pass": true,
+        "detail": "missing_groups=[] forbidden_present=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      }
+    },
+    "extra": {
+      "model_required_correct": false,
+      "corrections": [
+        {
+          "preference": "earliest_start",
+          "model_said": "soft",
+          "applied": "required",
+          "evidence": [
+            "can't"
+          ]
+        }
+      ],
+      "invalid_tool_calls": 0,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true
+    }
+  }
+}

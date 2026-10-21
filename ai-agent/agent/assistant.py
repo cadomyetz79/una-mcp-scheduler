@@ -17,7 +17,21 @@ Guardrails enforced in code, not in the prompt:
    plan_schedule option. If not, the model is asked to revise once; if it
    still fails, the answer is returned flagged grounded=False.
 4. Step limit: the loop stops after max_steps model calls.
-5. Preference strength check (agent/preference_language.py): when the
+5. Evidence check (agent/evidence.py), when the model tries to answer:
+   - If the request needs plan_schedule evidence (taking / planning /
+     availability for course IDs that are known) and no plan covers them,
+     the model is told once which call is missing. If it still answers
+     without it, and the course IDs are known and the request states no
+     time/day wishes (so nothing would be left out), the assistant runs
+     plan_schedule itself once and asks the model to answer from it.
+     Otherwise the answer is marked with the missing evidence.
+   - Availability/eligibility claims ("is offered", "you can take") need a
+     matching plan_schedule result; catalog search alone is not enough.
+   - A section the student named may be mentioned while rejecting it; any
+     other section outside the plan options is ungrounded.
+   Unsupported claims and ungrounded sections get one forced revision, then
+   the answer is returned flagged grounded=False.
+6. Preference strength check (agent/preference_language.py): when the
    student's own words clearly mark a stated preference as optional ("if
    possible") or mandatory ("can't"), that wins over the model's
    required_preferences. Ambiguous wording leaves the model's choice alone.
@@ -35,6 +49,13 @@ from typing import Any
 from scheduling.models import VALID_DAYS
 
 from .banner_tools import BannerTools, ToolCallError
+from .evidence import (
+    has_preference_wording,
+    missing_plan_evidence,
+    required_courses,
+    section_mentions,
+    unsupported_claims,
+)
 from .llm import LLM
 from .planner import PREFERENCE_NAMES, Preferences, plan_schedules
 from .preference_language import reconcile
@@ -126,6 +147,7 @@ class TraceEntry:
     arguments: dict
     ok: bool
     result: Any
+    by: str = "model"  # "model" or "system" (evidence-check recovery)
 
 
 @dataclass
@@ -137,6 +159,10 @@ class AssistantResult:
     model_calls: int
     trace: list[TraceEntry] = field(default_factory=list)
     mcp_calls: list[dict] = field(default_factory=list)
+    unsupported_claims: list[dict] = field(default_factory=list)
+    rejected_section_mentions: list[str] = field(default_factory=list)
+    evidence_missing: list[str] = field(default_factory=list)
+    recoveries: list[dict] = field(default_factory=list)  # nudges and system-run tools
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -151,6 +177,7 @@ class SchedulingAssistant:
         term_id: str,
         max_steps: int = 8,
         check_preference_language: bool = True,
+        check_evidence: bool = True,
     ):
         self.tools = tools
         self.llm = llm
@@ -158,6 +185,7 @@ class SchedulingAssistant:
         self.term_id = term_id
         self.max_steps = max_steps
         self.check_preference_language = check_preference_language
+        self.check_evidence = check_evidence
         self._request = ""
         self.system_prompt = PROMPT_PATH.read_text(encoding="utf-8").replace("{term_id}", term_id)
 
@@ -279,6 +307,8 @@ class SchedulingAssistant:
         ]
         trace: list[TraceEntry] = []
         revised = False
+        recovery = 0  # 0: none yet, 1: model was nudged, 2: system recovery used
+        recoveries: list[dict] = []
 
         for step in range(1, self.max_steps + 1):
             reply = await self.llm.chat(messages, TOOL_SPECS)
@@ -303,31 +333,86 @@ class SchedulingAssistant:
                 continue
 
             answer = reply["content"]
-            mentioned = set(SECTION_ID_PATTERN.findall(answer))
-            ungrounded = sorted(mentioned - self._allowed_section_ids(trace))
-            if ungrounded and not revised:
+
+            # --- evidence orchestration (bounded: one nudge, one system-run plan)
+            missing: list[str] = []
+            if self.check_evidence:
+                need = required_courses(request, trace, self.student_id)
+                missing = missing_plan_evidence(need, trace)
+                if missing and recovery == 0:
+                    recovery = 1
+                    recoveries.append({"type": "nudge", "missing_course_ids": missing, "step": step})
+                    messages.append({"role": "assistant", "content": answer})
+                    messages.append({"role": "user", "content": (
+                        f"[System check] The student asked about taking or planning {', '.join(need['course_ids'])}, "
+                        f"but no plan_schedule result covers {', '.join(missing)}. The course catalog does not "
+                        "show whether a course is offered this term or whether this student can take it. "
+                        f"Call plan_schedule now with course_ids {json.dumps(need['course_ids'])}, adding time or "
+                        "day preferences only if the student stated them. Do not ask the student first."
+                    )})
+                    continue
+                if missing and recovery == 1:
+                    recovery = 2
+                    if not has_preference_wording(request):
+                        args = {"course_ids": need["course_ids"]}
+                        ok, result = await self._run_tool("plan_schedule", args)
+                        trace.append(TraceEntry("plan_schedule", args, ok, result, by="system"))
+                        recoveries.append({"type": "system_plan_schedule", "arguments": args, "ok": ok,
+                                           "step": step})
+                        messages.append({"role": "assistant", "content": "", "tool_calls": [
+                            {"function": {"name": "plan_schedule", "arguments": args}}]})
+                        messages.append({"role": "tool", "tool_name": "plan_schedule",
+                                         "content": json.dumps(result)})
+                        messages.append({"role": "user", "content": (
+                            "[System check] plan_schedule was run for the requested courses. Answer the "
+                            "student using only this result."
+                        )})
+                        continue
+                    recoveries.append({"type": "not_run", "reason": "request states time/day wishes; "
+                                       "a plan without them would ignore the student", "step": step})
+                missing = missing_plan_evidence(need, trace)
+
+            # --- grounding: sections and availability/eligibility claims
+            if self.check_evidence:
+                mentions = section_mentions(answer, trace, request)
+                ungrounded = mentions["ungrounded"]
+                rejected = mentions["rejected_mentions"]
+                claims = unsupported_claims(answer, trace)
+            else:
+                ungrounded = sorted(set(SECTION_ID_PATTERN.findall(answer)) - self._allowed_section_ids(trace))
+                rejected, claims = [], []
+            if (ungrounded or claims) and not revised:
                 revised = True
+                problems = []
+                if ungrounded:
+                    problems.append(f"it mentions section(s) {', '.join(ungrounded)} that were not in any "
+                                    "plan_schedule option")
+                for c in claims:
+                    problems.append(f'it says "{c["sentence"]}" but {c["reason"]}')
                 messages.append({"role": "assistant", "content": answer})
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Your answer mentions section(s) {', '.join(ungrounded)} that were not in any "
-                            "plan_schedule option. Rewrite it using only sections from the returned options, "
-                            "calling plan_schedule if needed."
-                        ),
-                    }
-                )
+                messages.append({"role": "user", "content": (
+                    "Your answer is not supported by the tool results: " + "; ".join(problems) + ". "
+                    "Rewrite it using only facts from tool results, calling plan_schedule if needed. "
+                    "If something cannot be checked, say so instead of stating it."
+                )})
                 continue
 
+            if missing:
+                answer += ("\n\n(Note: I could not check section availability for "
+                           f"{', '.join(missing)} in this conversation, so nothing above confirms that you can "
+                           "register for it.)")
             return AssistantResult(
                 answer=answer,
-                grounded=not ungrounded,
+                grounded=not ungrounded and not claims,
                 ungrounded_section_ids=ungrounded,
                 stopped_reason="answered",
                 model_calls=step,
                 trace=trace,
                 mcp_calls=list(self.tools.calls),
+                unsupported_claims=claims,
+                rejected_section_mentions=rejected,
+                evidence_missing=missing,
+                recoveries=recoveries,
             )
 
         return AssistantResult(
@@ -338,4 +423,5 @@ class SchedulingAssistant:
             model_calls=self.max_steps,
             trace=trace,
             mcp_calls=list(self.tools.calls),
+            recoveries=recoveries,
         )

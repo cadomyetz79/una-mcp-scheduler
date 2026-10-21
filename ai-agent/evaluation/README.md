@@ -73,9 +73,16 @@ Windows (PowerShell, from `ai-agent`):
 
 ## Results so far
 
-See `docs/evidence/2026-10-19-eval-report.md`: baseline 8/19, with the
-deterministic preference check 13/19 (qwen3:8b, CPU, one run each), plus the
-comparison table and raw records.
+Live, qwen3:8b on CPU, one run each (raw records in `docs/evidence/`):
+
+| Run | Code | Cases passed | Report |
+|---|---|---|---|
+| Baseline | `12afb14` | 8/19 | `2026-10-19-eval-report.md` |
+| + preference check | `8adbc6d` | 13/19 | `2026-10-19-eval-report.md` |
+| + evidence check | `aae1e98` | 19/19 | `2026-10-19-eval-report-evidence.md` |
+
+The rules behind the last two runs were written after seeing these cases, so
+these numbers are not evidence of generalisation; see the reports.
 
 Compare two runs:
 

@@ -314,3 +314,28 @@ etc. are now soft unless listed in `required_preferences`.
 - The preference rules were written alongside the cases; real student
   wording is needed before claiming accuracy. One run per configuration.
 
+### 2026-10-19 — Evidence orchestration and claim grounding (branch `feature/evidence-orchestration`)
+
+**CONFIRMED (live model, one run; `docs/evidence/2026-10-19-eval-report-evidence.md`)**
+- Diagnosis of the six remaining failures: four times the model answered from
+  the catalog without `plan_schedule` (two with false availability claims),
+  once after an invalid argument, and E16 was a correct refusal counted as
+  ungrounded by the section rule.
+- `agent/evidence.py`: a request about taking/planning/availability with
+  known course IDs needs plan evidence; one nudge, then at most one
+  system-run `plan_schedule` (only when the request states no time/day
+  wishes); availability/eligibility claims need plan evidence; a section the
+  student named may be mentioned while rejecting it.
+- Live, same 19 cases and settings: **19/19** (from 13/19). All five
+  missing-plan cases recovered after one nudge, with the model's own correct
+  `plan_schedule` call; the system-run fallback was not needed. No new
+  failures; 0 unsupported availability claims in final answers (from 2);
+  0 hard-constraint violations. Cost: 9 more model calls in total, mean
+  latency 143 s → 200 s per case.
+
+**LIMITS**
+- Rules written after reading these failures; one run; fallback path tested
+  only with scripted responses. E16 passes because the rule changed (same
+  answer); E14 passes partly through keyword scoring ("no conflicts").
+  Dataset v2 with unseen requests is the next step.
+
