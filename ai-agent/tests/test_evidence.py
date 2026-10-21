@@ -66,14 +66,19 @@ ANSWER_E14_LIVE = {"content": "I can't use section IDs directly. Would you like 
 
 
 # ------------------------------------------------------------ path 1: the model follows the nudge
+# (Since 2026-10-20 the final answers for S10001 say that SEC2001 overlaps the
+# student's current CIS376 class; an answer offering it without that gets a
+# forced revision, see tests/test_quality_pass.py.)
 
 @pytest.mark.parametrize("case_id, first, live_answer, plan_args, final", [
     ("E08", SEARCH_E08, ANSWER_E08_LIVE, {"course_ids": ["CIS450", "CIS410"]},
-     "You can't take CIS450 yet: it needs CIS376 and CIS410. For CIS410 you can take SEC2001 or SEC2002."),
+     "You can't take CIS450 yet: it needs CIS376 and CIS410. For CIS410, SEC2002 fits your current classes; "
+     "SEC2001 overlaps your current CIS376 class."),
     ("E09", SEARCH_E09, ANSWER_E09_LIVE, {"course_ids": ["CIS330"]},
      "CIS330 is not offered in Spring 2027, so it can't be planned."),
     ("E11", SEARCH_E11, ANSWER_E11_LIVE, {"course_ids": ["CIS410"]},
-     "Secure Systems is CIS410. You can take SEC2001 (Mon/Wed 10:30-11:45) or SEC2002 (online)."),
+     "Secure Systems is CIS410. SEC2002 (online) fits your current classes; SEC2001 (Mon/Wed 10:30-11:45) "
+     "overlaps your current CIS376 class."),
     ("E12", SEARCH_E12, ANSWER_E12_LIVE, {"course_ids": ["CIS376"]},
      "Advanced Networking is CIS376. The open section is SEC1001, Mon/Wed 9:30-10:45."),
     ("E14", BAD_ARGS_E14, ANSWER_E14_LIVE, {"course_ids": ["CIS376", "CIS410"]},
@@ -93,9 +98,11 @@ async def test_nudge_recovers_missing_plan(case_id, first, live_answer, plan_arg
 
 @pytest.mark.parametrize("case_id, first, live_answer, final", [
     ("E08", SEARCH_E08, ANSWER_E08_LIVE,
-     "You can't take CIS450 yet: it needs CIS376 and CIS410. For CIS410 you can take SEC2001 or SEC2002."),
+     "You can't take CIS450 yet: it needs CIS376 and CIS410. For CIS410, SEC2002 fits your current classes; "
+     "SEC2001 overlaps your current CIS376 class."),
     ("E09", SEARCH_E09, ANSWER_E09_LIVE, "CIS330 is not offered in Spring 2027."),
-    ("E11", SEARCH_E11, ANSWER_E11_LIVE, "CIS410 has two options: SEC2001 or SEC2002."),
+    ("E11", SEARCH_E11, ANSWER_E11_LIVE, "CIS410 has two options: SEC2002, or SEC2001, which overlaps your "
+     "current CIS376 class."),
     ("E12", SEARCH_E12, ANSWER_E12_LIVE, "CIS376 is open in SEC1001."),
     ("E14", BAD_ARGS_E14, {"content": "Let me check for available options."},
      "Those two overlap, so they conflict. A valid schedule is SEC1001 with SEC2002."),

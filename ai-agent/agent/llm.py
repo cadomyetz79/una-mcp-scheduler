@@ -12,6 +12,12 @@ provided:
 Assistant messages are normalized to:
     {"role": "assistant", "content": str,
      "tool_calls": [{"name": str, "arguments": dict}, ...]}
+
+Per-request statistics (R9, quality pass 2026-10-20): OllamaLLM.stats is per
+LLM object, so requests sharing one object (a web server) mixed their timing
+records. Each call's record now also goes to the log of the request in
+progress (call_log(), a context variable, like BannerTools.run_log()), and
+SchedulingAssistant returns it as AssistantResult.llm_calls.
 """
 
 from __future__ import annotations
@@ -22,6 +28,9 @@ import os
 import re
 import time
 import urllib.error
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Iterator
 import urllib.request
 from typing import Any, Protocol
 
@@ -30,6 +39,20 @@ _THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 class LLMError(RuntimeError):
     pass
+
+
+_CALL_LOG: ContextVar[list | None] = ContextVar("una_llm_call_log", default=None)
+
+
+@contextmanager
+def call_log() -> Iterator[list[dict]]:
+    """Collect the model-call statistics of one request (safe under concurrent requests)."""
+    log: list[dict] = []
+    token = _CALL_LOG.set(log)
+    try:
+        yield log
+    finally:
+        _CALL_LOG.reset(token)
 
 
 class LLM(Protocol):
@@ -60,6 +83,7 @@ class OllamaLLM:
         think: bool | None = None,
         num_ctx: int | None = None,
         num_predict: int | None = None,
+        max_stats: int = 1000,
     ):
         """think: None leaves the model's default; False turns off qwen3's
         reasoning trace (much faster on CPU). num_ctx: context window to request.
@@ -67,7 +91,9 @@ class OllamaLLM:
         cost of runaway generations: the longest normal answer in the recorded
         live runs was 556 tokens; the leaking H20 answers were 915 and 1023 and
         took close to 10 minutes on CPU. A capped call has done_reason "length".
-        Every call's token counts and timings are kept in self.stats."""
+        Every call's token counts and timings are kept in self.stats (the last
+        max_stats calls of this object, all requests) and in the call_log() of
+        the request in progress."""
         self.model = model
         self.host = (host or os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
         if not self.host.startswith("http"):
@@ -78,6 +104,7 @@ class OllamaLLM:
         self.num_ctx = num_ctx
         self.num_predict = num_predict
         self.stats: list[dict] = []
+        self.max_stats = max_stats
 
     def _post(self, payload: dict) -> dict:
         req = urllib.request.Request(
@@ -112,7 +139,7 @@ class OllamaLLM:
         data = await asyncio.to_thread(self._post, payload)
         msg = data.get("message") or {}
         ns = 1e9
-        self.stats.append(
+        entry = (
             {
                 "wall_s": round(time.perf_counter() - started, 2),
                 "prompt_tokens": data.get("prompt_eval_count"),
@@ -125,6 +152,11 @@ class OllamaLLM:
                 "done_reason": data.get("done_reason"),
             }
         )
+        self.stats.append(entry)
+        del self.stats[:-self.max_stats]  # bounded: a long-running server must not grow forever
+        log = _CALL_LOG.get()
+        if log is not None:
+            log.append(entry)
         return {
             "role": "assistant",
             "content": _THINK.sub("", msg.get("content") or "").strip(),

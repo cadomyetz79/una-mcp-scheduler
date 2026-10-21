@@ -503,14 +503,17 @@ async def test_concurrent_students_on_one_mcp_session_never_see_each_other(heldo
 
 async def test_option_overlapping_a_current_class_is_flagged_ranked_last_and_told():
     # S10001 is registered in SEC1001 (CIS376, MON/WED 09:30-10:45); SEC2001 overlaps it.
+    # (since 2026-10-20 the answer itself must say so; see tests/test_quality_pass.py)
     result, llm = await run_with({}, [{"tool_calls": [call("plan_schedule", course_ids=["CIS410"])]},
-                                      {"content": "SEC2002 or SEC2001."}], request="Plan CIS410 for me.")
+                                      {"content": "SEC2002 fits. SEC2001 overlaps your current CIS376 class."}],
+                                 request="Plan CIS410 for me.")
     plan = plan_step(result).result
     assert plan["current_registrations_checked"] is True
     assert [o["section_ids"] for o in plan["options"]] == [["SEC2002"], ["SEC2001"]]
     assert [o["compatible_with_current_registration"] for o in plan["options"]] == [True, False]
     assert "SEC1001" not in seen_by_model(llm)  # current sections are described, not named
-    assert "Note: SEC2001 overlaps your current CIS376 class (MON/WED 09:30-10:45)." in result.answer
+    assert ("Note: SEC2001 would require changing your current registration: SEC2001 overlaps your current "
+            "CIS376 class, MON/WED 09:30-10:45.") in result.answer
     assert result.answer_source == "model+system_note"
 
 
@@ -520,7 +523,10 @@ async def test_already_registered_course_is_told():
     assert plan["already_registered"] == [{"course_id": "CIS376", "current_section": plan["already_registered"][0][
         "current_section"]}]
     assert "already registered for CIS376 this term (MON/WED 09:30-10:45)" in result.answer
-    assert plan["options"] and not plan["options"][0]["compatible_with_current_registration"]
+    # SEC1001 is the section the student is already in: keeping it is no change (2026-10-20)
+    [option] = plan["options"]
+    assert option["current_registration"]["keeps_current_sections"] == ["SEC1001"]
+    assert option["registration_fit"] == "fits_current_registration"
 
 
 async def test_registrations_that_cannot_be_checked_are_reported_not_ignored():

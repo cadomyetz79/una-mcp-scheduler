@@ -27,6 +27,7 @@ from .evidence import (
     _get,
     _plans,
     _when,
+    option_change_reasons,
     registration_notes,
     requested_section_report,
 )
@@ -54,9 +55,24 @@ def _ids(pattern: re.Pattern, text: str) -> list[str]:
     return seen
 
 
-def _option_line(option: dict) -> str:
+_FIT_LABEL = {
+    True: " (fits with the classes you're already registered for)",
+    None: " (not confirmed against the classes you're already registered for)",
+}
+
+
+def _option_line(option: dict, current: dict | None = None) -> str:
     parts = [f"{s['section_id']} ({s['course_id']}, {_when(s)})" for s in option.get("sections", [])]
-    return "- " + " + ".join(parts)
+    line = "- " + " + ".join(parts)
+    if option.get("registration_fit") == "not_checked":
+        return line + " (not checked against the classes you're already registered for)"
+    if current is None or "compatible_with_current_registration" not in option:
+        return line
+    fit = option["compatible_with_current_registration"]
+    if fit is False:
+        return line + " - requires changing your current registration: " + "; ".join(
+            option_change_reasons(option, current))
+    return line + _FIT_LABEL[fit]
 
 
 OTHER_STUDENT = "I can only access your own student record, so I can't look up or plan for another student."
@@ -88,7 +104,7 @@ def build(request: str, trace: list, term_id: str, findings: InputFindings | Non
             problems = [f"{sid} {rs.get('not_found_reason') or 'is not a section of the planned courses'}."
                         for sid in rs.get("not_found", [])]
             desc = {s["section_id"]: s for s in rs.get("sections", [])}
-            for issue in rs.get("issues", []):
+            for issue in rs.get("issues", []) + (rs.get("registration_issues") or []):
                 sids = issue.get("section_ids") or []
                 if issue["code"] == "TIME_CONFLICT" and len(sids) == 2 and all(s in desc for s in sids):
                     a, b = sids
@@ -102,13 +118,16 @@ def build(request: str, trace: list, term_id: str, findings: InputFindings | Non
                 lines.append(f"The registration checks accept {', '.join(rs['section_ids'])} together.")
         options = result.get("options", [])
         if options:
+            # each option is labelled with how it fits current registrations (when checked)
+            current = ({s["course_id"]: s for s in result.get("current_registrations") or []}
+                       if result.get("current_registrations_checked") else None)
             lines.append(f"Valid schedule options the registration checks returned for {courses} ({term_id}):")
-            lines += [_option_line(o) for o in options[:3]]
+            lines += [_option_line(o, current) for o in options[:3]]
         for e in result.get("excluded", []):
             lines.append(f"{e['course_id']}: {e['reason']}")
         if not options and not result.get("excluded"):
             lines.append(f"No valid combination of sections was found for {courses} in {term_id}.")
-        lines += registration_notes(trace)
+        lines += registration_notes(trace, per_option=False)
     else:
         failed = [t for t in trace if not _get(t, "ok") and isinstance(_get(t, "result"), dict)]
         error = _get(failed[-1], "result") if failed else {}

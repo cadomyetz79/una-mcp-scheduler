@@ -51,6 +51,7 @@ DATASETS = {
     "heldout2": Path(__file__).resolve().parent / "heldout2" / "cases.json",
 }
 DEV_V2_OVERLAY = Path(__file__).resolve().with_name("dev_scoring_v2.json")
+DEV_REGISTRATION_ORACLES = Path(__file__).resolve().with_name("dev_oracle_registrations.json")
 SERVER = ROOT / "dev" / "fake_mcp_server.py"
 
 
@@ -69,6 +70,12 @@ def load_cases(ids: list[str] | None = None, dataset: str = "dev", scoring_versi
         for c in data["cases"]:
             c["expect"] = {**c["expect"], **overlay["expect"].get(c["id"], {})}
             c["oracle"] = overlay.get("oracle", {}).get(c["id"], c["oracle"])
+    if dataset == "dev":
+        # Oracle answers that state current-registration overlaps (2026-10-20, documented in the overlay).
+        answers = json.loads(DEV_REGISTRATION_ORACLES.read_text(encoding="utf-8"))["oracle_answer"]
+        for c in data["cases"]:
+            if c["id"] in answers:
+                c["oracle"] = [*c["oracle"][:-1], {"content": answers[c["id"]]}]
     if ids:
         data["cases"] = [c for c in data["cases"] if c["id"] in ids]
     return data
@@ -80,6 +87,7 @@ async def run_case(case: dict, term_id: str, llm, server_params,
     record = {"case_id": case["id"], "request": case["request"], "student_id": case["student_id"],
               "term_id": term_id}
     started = time.perf_counter()
+    result = None
     try:
         async with Client(server_params) as client:
             assistant = SchedulingAssistant(BannerTools(client), llm, case["student_id"], term_id,
@@ -88,6 +96,7 @@ async def run_case(case: dict, term_id: str, llm, server_params,
                                             check_security=check_security)
             result = await assistant.run(case["request"])
         record["result"] = result.to_dict()
+        record["result"].pop("llm_calls", None)  # kept once, as record["llm_calls"] below
         if result.error:
             # Since 2026-10-19 (audit D2) the assistant catches its own failures and keeps
             # only a category and a hash, so the record is marked here as before.
@@ -109,7 +118,8 @@ async def run_case(case: dict, term_id: str, llm, server_params,
         record["error_kind"] = classify_error(" ".join(leaves))
     record["wall_s"] = round(time.perf_counter() - started, 2)
     if isinstance(llm, OllamaLLM):
-        record["llm_calls"] = llm.stats[:]
+        # this case's calls only (R9); llm.stats only if the run never started
+        record["llm_calls"] = list(result.llm_calls) if result is not None else llm.stats[:]
         llm.stats.clear()
     return record
 
