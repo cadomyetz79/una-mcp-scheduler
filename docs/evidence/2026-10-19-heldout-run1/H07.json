@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T09:21:28+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H07",
+    "request": "Build me a spring schedule with Database Systems, Cloud Computing and Advanced Networking.",
+    "student_id": "S20001",
+    "term_id": "2027SP",
+    "error": "ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)",
+    "wall_s": 419.39,
+    "llm_calls": [
+      {
+        "wall_s": 54.78,
+        "prompt_tokens": 975,
+        "output_tokens": 84,
+        "prompt_s": 5.4,
+        "output_s": 49.15,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 3
+      },
+      {
+        "wall_s": 62.94,
+        "prompt_tokens": 1199,
+        "output_tokens": 40,
+        "prompt_s": 39.13,
+        "output_s": 23.74,
+        "load_s": 0.01,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      }
+    ]
+  },
+  "score": {
+    "id": "H07",
+    "pass": false,
+    "checks": {
+      "completed": {
+        "pass": false,
+        "detail": "run error: ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)"
+      }
+    },
+    "scoring_version": 2
+  }
+}

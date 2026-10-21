@@ -1,0 +1,8 @@
+H04 pass=True wall=661.99s failed=[]
+H07 pass=True wall=767.85s failed=[]
+H08 pass=False wall=126.58s failed=['answer']
+H14 pass=False wall=695.77s failed=['conflict:SEC5001/SEC5301']
+H20 pass=False wall=3.01s failed=['completed']
+H24 pass=True wall=869.93s failed=[]
+H30 pass=True wall=670.74s failed=[]
+{"passed": 4, "total": 7, "rate": 0.571}

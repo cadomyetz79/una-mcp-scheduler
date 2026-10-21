@@ -1,0 +1,19 @@
+{
+  "note": "Scoring v2 additions for the DEVELOPMENT set (evaluation/cases.json is left unchanged). Added on 2026-10-19 after the known E14 weakness: in v1, E14's keyword group matched 'has no conflicts'. v2 requires sentence-level statements about the specific sections/courses (evaluation/assertions.py). The v1 summaries in docs/evidence stay as they were; v2 rescoring is written to separate files.",
+  "expect": {
+    "E01": {"recommend": true},
+    "E08": {"ineligible": {"CIS450": ["CIS376"]}},
+    "E09": {"availability": {"CIS330": "not_offered"}},
+    "E11": {"recommend": true},
+    "E12": {"recommend": true},
+    "E14": {"conflict": [["SEC1001", "SEC2001"]]},
+    "E18": {"ineligible": {"CIS376": ["CIS330"]}},
+    "E19": {"ineligible": {"CIS410": ["CIS330"]}}
+  },
+  "oracle": {
+    "E14": [
+      {"tool_calls": [{"name": "plan_schedule", "arguments": {"course_ids": ["CIS376", "CIS410"]}}]},
+      {"content": "SEC1001 and SEC2001 overlap on Mon/Wed, so they conflict. A valid schedule is SEC1001 with SEC2002 (online)."}
+    ]
+  }
+}

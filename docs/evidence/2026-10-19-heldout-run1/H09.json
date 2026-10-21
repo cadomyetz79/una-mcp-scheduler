@@ -1,0 +1,237 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T09:21:28+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H09",
+    "request": "Can I take the Cybersecurity Capstone next spring?",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "You cannot take the Cybersecurity Capstone (CIS450) next spring because you haven't completed the required prerequisite course, CIS410. To enroll in CIS450, you must first complete CIS410. Would you like to explore other courses you could take next spring?",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 4,
+      "trace": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "subject": "CIS",
+            "query": "Cybersecurity Capstone"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS450",
+              "title": "Cybersecurity Capstone",
+              "credit_hours": 3,
+              "prerequisites": [
+                "CIS376",
+                "CIS410"
+              ],
+              "corequisites": []
+            }
+          ],
+          "by": "model"
+        },
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "course_ids": [
+              "CIS450"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS450"
+            ],
+            "options": [],
+            "excluded": [
+              {
+                "course_id": "CIS450",
+                "code": "MISSING_PREREQUISITE",
+                "reason": "CIS450 requires CIS410."
+              }
+            ],
+            "combinations_checked": 0,
+            "rejection_counts": {},
+            "total_valid_options": 0,
+            "options_truncated": false,
+            "search_capped": false,
+            "preferences_applied": {
+              "earliest_start": null,
+              "latest_end": null,
+              "avoid_days": [],
+              "required": []
+            }
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "Cybersecurity Capstone",
+            "subject": "CIS"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS450"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS450",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": [
+        {
+          "type": "nudge",
+          "missing_course_ids": [
+            "CIS450"
+          ],
+          "step": 2
+        }
+      ]
+    },
+    "wall_s": 335.32,
+    "llm_calls": [
+      {
+        "wall_s": 154.63,
+        "prompt_tokens": 971,
+        "output_tokens": 31,
+        "prompt_s": 119.42,
+        "output_s": 17.54,
+        "load_s": 17.62,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 48.5,
+        "prompt_tokens": 1064,
+        "output_tokens": 54,
+        "prompt_s": 16.84,
+        "output_s": 31.62,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      },
+      {
+        "wall_s": 58.28,
+        "prompt_tokens": 1207,
+        "output_tokens": 25,
+        "prompt_s": 44.01,
+        "output_s": 14.25,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 71.87,
+        "prompt_tokens": 1376,
+        "output_tokens": 63,
+        "prompt_s": 33.56,
+        "output_s": 38.29,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "H09",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule', 'search_courses']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS450'] want=['CIS450']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[] want=[] excluded={'CIS450': 'MISSING_PREREQUISITE'} want={'CIS450': 'MISSING_PREREQUISITE'}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "ineligible:CIS450": {
+        "pass": true,
+        "detail": "must say CIS450 needs ['CIS410']"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0,
+      "recoveries": [
+        "nudge"
+      ],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

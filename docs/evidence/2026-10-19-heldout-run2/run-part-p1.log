@@ -1,0 +1,12 @@
+H01 pass=True wall=378.64s failed=[]
+H02 pass=True wall=225.34s failed=[]
+H03 pass=True wall=307.75s failed=[]
+H04 pass=True wall=520.75s failed=[]
+H05 pass=False wall=135.19s failed=['clarification']
+H06 pass=True wall=353.21s failed=[]
+H07 pass=True wall=727.26s failed=[]
+H08 pass=False wall=3.3s failed=['completed']
+H09 pass=True wall=334.49s failed=[]
+H10 pass=True wall=272.83s failed=[]
+H11 pass=True wall=129.38s failed=[]
+{"passed": 9, "total": 11, "rate": 0.818}

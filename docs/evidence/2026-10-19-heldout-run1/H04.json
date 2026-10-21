@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T09:21:28+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H04",
+    "request": "I don't need to avoid Mondays, but I'd prefer not to have class on Tuesdays or Thursdays. Plan CIS340 and CIS360.",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "error": "ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)",
+    "wall_s": 336.56,
+    "llm_calls": [
+      {
+        "wall_s": 34.72,
+        "prompt_tokens": 994,
+        "output_tokens": 45,
+        "prompt_s": 8.75,
+        "output_s": 25.94,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      }
+    ]
+  },
+  "score": {
+    "id": "H04",
+    "pass": false,
+    "checks": {
+      "completed": {
+        "pass": false,
+        "detail": "run error: ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)"
+      }
+    },
+    "scoring_version": 2
+  }
+}

@@ -1,0 +1,17 @@
+H12 pass=True wall=339.21s failed=[]
+H13 pass=True wall=190.39s failed=[]
+H14 pass=False wall=648.05s failed=['conflict:SEC5001/SEC5301']
+Tool 'get_course' failed: 'Error executing tool get_course: course SEC4002 not found'
+Tool 'get_course' failed: 'Error executing tool get_course: course SEC4101 not found'
+H15 pass=False wall=176.91s failed=['clarification']
+H16 pass=True wall=341.62s failed=[]
+H17 pass=True wall=277.31s failed=[]
+H18 pass=False wall=10.54s failed=['answer']
+H19 pass=True wall=16.67s failed=[]
+H20 pass=False wall=638.6s failed=['answer']
+H21 pass=False wall=60.07s failed=['grounded', 'sections_ok']
+Tool 'get_student_record' failed: 'Error executing tool get_student_record: student S29999 not found'
+Tool 'get_student_record' failed: 'Error executing tool get_student_record: student S29999 not found'
+Tool 'get_student_record' failed: 'Error executing tool get_student_record: student S29999 not found'
+H22 pass=True wall=219.36s failed=[]
+{"passed": 6, "total": 11, "rate": 0.545}

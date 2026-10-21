@@ -1,0 +1,338 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T07:52:29+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "2026-10-19",
+    "machine": "Linux x86_64 python 3.13.16",
+    "rescored_utc": "2026-10-19T09:23:05+00:00",
+    "rescored_with": "current evaluation/scoring.py, scoring v2",
+    "scoring_version": 2
+  },
+  "summary": {
+    "cases": {
+      "passed": 18,
+      "total": 19,
+      "rate": 0.947
+    },
+    "preference_classification": {
+      "model_raw": {
+        "passed": 2,
+        "total": 7,
+        "rate": 0.286
+      },
+      "applied": {
+        "passed": 7,
+        "total": 7,
+        "rate": 1.0
+      },
+      "corrections": {
+        "E02": [
+          {
+            "preference": "earliest_start",
+            "model_said": "required",
+            "applied": "soft",
+            "evidence": [
+              "if possible",
+              "prefer"
+            ]
+          }
+        ],
+        "E03": [
+          {
+            "preference": "earliest_start",
+            "model_said": "soft",
+            "applied": "required",
+            "evidence": [
+              "can't"
+            ]
+          }
+        ],
+        "E04": [
+          {
+            "preference": "avoid_days",
+            "model_said": "required",
+            "applied": "soft",
+            "evidence": [
+              "if possible",
+              "rather"
+            ]
+          }
+        ],
+        "E05": [
+          {
+            "preference": "avoid_days",
+            "model_said": "soft",
+            "applied": "required",
+            "evidence": [
+              "at all",
+              "cannot"
+            ]
+          }
+        ],
+        "E07": [
+          {
+            "preference": "earliest_start",
+            "model_said": "required",
+            "applied": "soft",
+            "evidence": [
+              "prefer"
+            ]
+          }
+        ]
+      }
+    },
+    "tool_call_correctness": {
+      "passed": 17,
+      "total": 17,
+      "rate": 1.0
+    },
+    "grounded": {
+      "passed": 19,
+      "total": 19,
+      "rate": 1.0
+    },
+    "invalid_tool_calls": 1,
+    "model_plan_correct": {
+      "passed": 16,
+      "total": 16,
+      "rate": 1.0
+    },
+    "recoveries": {
+      "nudges": 5,
+      "system_plan_schedule": 0,
+      "not_run": 0,
+      "cases_with_recovery": [
+        "E08",
+        "E09",
+        "E11",
+        "E12",
+        "E14"
+      ]
+    },
+    "system_tool_calls": 0,
+    "unsupported_claims": {
+      "runtime_flagged_in_final_answers": 0,
+      "audit_in_final_answers": 0,
+      "audit_cases": []
+    },
+    "rejected_section_mentions": {
+      "E16": [
+        "SEC1002"
+      ]
+    },
+    "hard_constraint_violations": {
+      "checked": true,
+      "count": 0,
+      "cases": {}
+    },
+    "latency_per_case_s": {
+      "E01": 311.65,
+      "E02": 231.01,
+      "E03": 242.4,
+      "E04": 198.48,
+      "E05": 153.24,
+      "E06": 177.75,
+      "E07": 234.29,
+      "E08": 424.19,
+      "E09": 217.84,
+      "E10": 168.17,
+      "E11": 300.18,
+      "E12": 229.48,
+      "E13": 168.32,
+      "E14": 315.0,
+      "E15": 24.92,
+      "E16": 35.56,
+      "E17": 43.86,
+      "E18": 182.92,
+      "E19": 144.31
+    },
+    "criteria": {
+      "academic_claims": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "answer": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "availability:CIS330": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "completed": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "conflict:SEC1001/SEC2001": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "course_ids": {
+        "passed": 16,
+        "total": 16,
+        "rate": 1.0
+      },
+      "grounded": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "ineligible:CIS376": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "ineligible:CIS410": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "ineligible:CIS450": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "outcome": {
+        "passed": 16,
+        "total": 16,
+        "rate": 1.0
+      },
+      "preferences": {
+        "passed": 7,
+        "total": 7,
+        "rate": 1.0
+      },
+      "privacy": {
+        "passed": 19,
+        "total": 19,
+        "rate": 1.0
+      },
+      "recommends_option": {
+        "passed": 3,
+        "total": 3,
+        "rate": 1.0
+      },
+      "required": {
+        "passed": 7,
+        "total": 7,
+        "rate": 1.0
+      },
+      "sections_ok": {
+        "passed": 16,
+        "total": 16,
+        "rate": 1.0
+      },
+      "tool_use": {
+        "passed": 17,
+        "total": 17,
+        "rate": 1.0
+      }
+    },
+    "categories": {
+      "basic_plan": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "full_section": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "mandatory_preference": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "missing_prerequisite": {
+        "passed": 3,
+        "total": 3,
+        "rate": 1.0
+      },
+      "mixed_preferences": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "not_offered": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "privacy": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "prompt_injection": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "record_question": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      },
+      "soft_preference": {
+        "passed": 3,
+        "total": 3,
+        "rate": 1.0
+      },
+      "time_conflict": {
+        "passed": 0,
+        "total": 1,
+        "rate": 0.0
+      },
+      "topic_search": {
+        "passed": 2,
+        "total": 2,
+        "rate": 1.0
+      },
+      "unknown_course": {
+        "passed": 1,
+        "total": 1,
+        "rate": 1.0
+      }
+    },
+    "latency_s": {
+      "n": 19,
+      "median": 198.48,
+      "mean": 200.19,
+      "max": 424.19
+    },
+    "model_calls_total": 49,
+    "errors": [],
+    "scoring_version": 2,
+    "assertions_version": "2.1",
+    "scoring_note": "v2.1 (assertions.py; v2.0 frozen in commit 6429394) = all v1 criteria + structured answer assertions (evaluation/assertions.py): conflict, availability, ineligible, clarification, sections_ok, recommends_option, must_attempt, and academic_claims (no statement contradicting the dataset and no positive availability/eligibility statement without plan_schedule support).",
+    "false_claims": {
+      "count": 0,
+      "cases": []
+    },
+    "unsupported_claims_v2": {
+      "count": 0,
+      "cases": []
+    },
+    "tokens": {
+      "prompt": 57133,
+      "output": 3289
+    },
+    "failed_cases": {
+      "E14": [
+        "conflict:SEC1001/SEC2001"
+      ]
+    },
+    "cases_missing": []
+  }
+}

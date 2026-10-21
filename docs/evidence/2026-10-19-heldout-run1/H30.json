@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T10:37:20+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 300.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H30",
+    "request": "Which of these are offered next spring: CIS340, CIS480, CIS360?",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "error": "ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)",
+    "error_causes": [
+      "TimeoutError: timed out"
+    ],
+    "error_kind": "infrastructure:timeout",
+    "wall_s": 435.13,
+    "llm_calls": [
+      {
+        "wall_s": 27.81,
+        "prompt_tokens": 983,
+        "output_tokens": 41,
+        "prompt_s": 6.08,
+        "output_s": 21.71,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 43.46,
+        "prompt_tokens": 1034,
+        "output_tokens": 60,
+        "prompt_s": 9.8,
+        "output_s": 33.64,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      },
+      {
+        "wall_s": 62.41,
+        "prompt_tokens": 1217,
+        "output_tokens": 40,
+        "prompt_s": 40.11,
+        "output_s": 22.27,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      }
+    ]
+  },
+  "score": {
+    "id": "H30",
+    "pass": false,
+    "checks": {
+      "completed": {
+        "pass": false,
+        "detail": "run error: ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)"
+      }
+    },
+    "scoring_version": 2
+  }
+}

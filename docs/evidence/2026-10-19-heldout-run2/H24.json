@@ -1,0 +1,421 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T14:51:21+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 900.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H24",
+    "request": "I'm new here. Set up CIS225 and CIS236 for my first spring.",
+    "student_id": "S20004",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "Here are your options for CIS225 and CIS236 in 2027SP:\n\n1. **Option 1**  \n   - **Sections**: SEC4001 (CIS225), SEC4101 (CIS236)  \n   - **Days/Times**:  \n     - CIS225: Monday, Wednesday, Friday, 8:00\u20138:50 AM  \n     - CIS236: Monday, Wednesday, 1:00\u20132:15 PM  \n   - **Location**: Building C 110 (CIS225), Building C 205 (CIS236)  \n   - **Total Credit Hours**: 6  \n\n2. **Option 2**  \n   - **Sections**: SEC4001 (CIS225), SEC4102 (CIS236)  \n   - **Days/Times**:  \n     - CIS225: Monday, Wednesday, Friday, 8:00\u20138:50 AM  \n     - CIS236: Online (no set days/times)  \n   - **Location**: Building C 110 (CIS225)  \n   - **Total Credit Hours**: 6  \n\n3. **Option 3**  \n   - **Sections**: SEC4002 (CIS225), SEC4101 (CIS236)  \n   - **Days/Times**:  \n     - CIS225: Tuesday, Thursday, 2:00\u20133:15 PM  \n     - CIS236: Monday, Wednesday, 1:00\u20132:15 PM  \n   - **Location**: Building C 110 (CIS225), Building C 205 (CIS236)  \n   - **Total Credit Hours**: 6  \n\n4. **Option 4**  \n   - **Sections**: SEC4002 (CIS225), SEC4102 (CIS236)  \n   - **Days/Times**:  \n     - CIS225: Tuesday, Thursday, 2:00\u20133:15 PM  \n     - CIS236: Online (no set days/times)  \n   - **Location**: Building C 110 (CIS225)  \n   - **Total Credit Hours**: 6  \n\nAll options meet your preferences for starting at 8:00 AM and ending by 5:00 PM. Choose the one that fits your schedule best!",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 3,
+      "trace": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "CIS225",
+            "subject": "CIS"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS225",
+              "title": "Introduction to Information Systems",
+              "credit_hours": 3,
+              "prerequisites": [],
+              "corequisites": []
+            }
+          ],
+          "by": "model"
+        },
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "CIS236",
+            "subject": "CIS"
+          },
+          "ok": true,
+          "result": [
+            {
+              "course_id": "CIS236",
+              "title": "Programming Fundamentals",
+              "credit_hours": 3,
+              "prerequisites": [],
+              "corequisites": []
+            }
+          ],
+          "by": "model"
+        },
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "earliest_start": "08:00",
+            "latest_end": "17:00",
+            "course_ids": [
+              "CIS225",
+              "CIS236"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS225",
+              "CIS236"
+            ],
+            "options": [
+              {
+                "section_ids": [
+                  "SEC4001",
+                  "SEC4101"
+                ],
+                "total_credit_hours": 6,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC4001",
+                    "course_id": "CIS225",
+                    "modality": "in_person",
+                    "seats_available": 15,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED",
+                          "FRI"
+                        ],
+                        "start": "08:00",
+                        "end": "08:50",
+                        "location": "Building C 110"
+                      }
+                    ]
+                  },
+                  {
+                    "section_id": "SEC4101",
+                    "course_id": "CIS236",
+                    "modality": "in_person",
+                    "seats_available": 18,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "13:00",
+                        "end": "14:15",
+                        "location": "Building C 205"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 1
+              },
+              {
+                "section_ids": [
+                  "SEC4001",
+                  "SEC4102"
+                ],
+                "total_credit_hours": 6,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC4001",
+                    "course_id": "CIS225",
+                    "modality": "in_person",
+                    "seats_available": 15,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED",
+                          "FRI"
+                        ],
+                        "start": "08:00",
+                        "end": "08:50",
+                        "location": "Building C 110"
+                      }
+                    ]
+                  },
+                  {
+                    "section_id": "SEC4102",
+                    "course_id": "CIS236",
+                    "modality": "online",
+                    "seats_available": 15,
+                    "meetings": []
+                  }
+                ],
+                "rank": 2
+              },
+              {
+                "section_ids": [
+                  "SEC4002",
+                  "SEC4101"
+                ],
+                "total_credit_hours": 6,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC4002",
+                    "course_id": "CIS225",
+                    "modality": "in_person",
+                    "seats_available": 5,
+                    "meetings": [
+                      {
+                        "days": [
+                          "TUE",
+                          "THU"
+                        ],
+                        "start": "14:00",
+                        "end": "15:15",
+                        "location": "Building C 110"
+                      }
+                    ]
+                  },
+                  {
+                    "section_id": "SEC4101",
+                    "course_id": "CIS236",
+                    "modality": "in_person",
+                    "seats_available": 18,
+                    "meetings": [
+                      {
+                        "days": [
+                          "MON",
+                          "WED"
+                        ],
+                        "start": "13:00",
+                        "end": "14:15",
+                        "location": "Building C 205"
+                      }
+                    ]
+                  }
+                ],
+                "rank": 3
+              },
+              {
+                "section_ids": [
+                  "SEC4002",
+                  "SEC4102"
+                ],
+                "total_credit_hours": 6,
+                "meets_all_preferences": true,
+                "preference_violations": [],
+                "sections": [
+                  {
+                    "section_id": "SEC4002",
+                    "course_id": "CIS225",
+                    "modality": "in_person",
+                    "seats_available": 5,
+                    "meetings": [
+                      {
+                        "days": [
+                          "TUE",
+                          "THU"
+                        ],
+                        "start": "14:00",
+                        "end": "15:15",
+                        "location": "Building C 110"
+                      }
+                    ]
+                  },
+                  {
+                    "section_id": "SEC4102",
+                    "course_id": "CIS236",
+                    "modality": "online",
+                    "seats_available": 15,
+                    "meetings": []
+                  }
+                ],
+                "rank": 4
+              }
+            ],
+            "excluded": [],
+            "combinations_checked": 4,
+            "rejection_counts": {},
+            "total_valid_options": 4,
+            "options_truncated": false,
+            "search_capped": false,
+            "preferences_applied": {
+              "earliest_start": "08:00",
+              "latest_end": "17:00",
+              "avoid_days": [],
+              "required": []
+            }
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "CIS225",
+            "subject": "CIS"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "search_courses",
+          "arguments": {
+            "query": "CIS236",
+            "subject": "CIS"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20004"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20004"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS225"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS236"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS225",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS236",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": []
+    },
+    "wall_s": 733.43,
+    "llm_calls": [
+      {
+        "wall_s": 41.44,
+        "prompt_tokens": 981,
+        "output_tokens": 62,
+        "prompt_s": 6.5,
+        "output_s": 34.91,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 2
+      },
+      {
+        "wall_s": 58.55,
+        "prompt_tokens": 1130,
+        "output_tokens": 52,
+        "prompt_s": 27.07,
+        "output_s": 31.45,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 631.82,
+        "prompt_tokens": 2113,
+        "output_tokens": 556,
+        "prompt_s": 220.14,
+        "output_s": 411.66,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "H24",
+    "pass": true,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule', 'search_courses']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS225', 'CIS236'] want=['CIS225', 'CIS236']"
+      },
+      "outcome": {
+        "pass": true,
+        "detail": "options=[['SEC4001', 'SEC4101'], ['SEC4001', 'SEC4102'], ['SEC4002', 'SEC4101'], ['SEC4002', 'SEC4102']] want=[['SEC4001', 'SEC4101'], ['SEC4001', 'SEC4102'], ['SEC4002', 'SEC4101'], ['SEC4002', 'SEC4102']] excluded={} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "recommends_option": {
+        "pass": true,
+        "detail": "answer must name every section of at least one valid option"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "invalid_tool_calls": 0,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}

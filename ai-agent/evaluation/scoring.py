@@ -236,3 +236,85 @@ def summarize(cases: list[dict], scores: list[dict], records: list[dict], ds=Non
         "model_calls_total": sum((r.get("result") or {}).get("model_calls", 0) for r in records),
         "errors": [r["case_id"] for r in records if "error" in r],
     }
+
+
+# ---------------------------------------------------------------- scoring v2
+
+ASSERTIONS_VERSION = "2.1"
+SCORING_V2_NOTE = (
+    "v2.1 (assertions.py; v2.0 frozen in commit 6429394) = all v1 criteria + structured answer assertions (evaluation/assertions.py): "
+    "conflict, availability, ineligible, clarification, sections_ok, recommends_option, "
+    "must_attempt, and academic_claims (no statement contradicting the dataset and no "
+    "positive availability/eligibility statement without plan_schedule support)."
+)
+
+
+def score_case_v2(case: dict, record: dict, ds) -> dict:
+    """v1 criteria plus stricter, sentence-level assertions. ds = the dataset the run used."""
+    from evaluation import assertions as A
+
+    score = score_case(case, record)
+    if "error" in record:
+        return {**score, "scoring_version": 2}
+    expect = case.get("expect", {})
+    result = record.get("result") or {}
+    answer = result.get("answer") or ""
+    trace = result.get("trace", [])
+    titles = A.titles_of(ds)
+    checks = score["checks"]
+
+    def check(name, passed, detail=""):
+        checks[name] = {"pass": bool(passed), "detail": detail}
+
+    if "must_attempt" in expect:
+        called = {t["tool"] for t in trace}
+        missing = [t for t in expect["must_attempt"] if t not in called]
+        check("must_attempt", not missing, f"missing={missing}")
+    for a, b in expect.get("conflict", []):
+        check(f"conflict:{a}/{b}", A.conflict(answer, a, b), "answer must say these two sections conflict")
+    for course, state in expect.get("availability", {}).items():
+        check(f"availability:{course}", A.availability(answer, course, state, titles), f"expected {state}")
+    for course, missing in expect.get("ineligible", {}).items():
+        check(f"ineligible:{course}", A.ineligible(answer, course, missing, titles),
+              f"must say {course} needs {missing}")
+    if "clarification" in expect:
+        c = expect["clarification"]
+        check("clarification", A.clarification(answer, c.get("candidates"), c.get("min", 0)),
+              f"must ask a question naming >= {c.get('min', 0)} of {c.get('candidates')}")
+    allowed = expect.get("allowed_sections")
+    if allowed is None and "options" in expect:
+        allowed = sorted({s for o in expect["options"] for s in o})
+    if allowed is not None:
+        ok, bad = A.sections_ok(answer, set(allowed), set(A.SECTION.findall(record.get("request", ""))))
+        check("sections_ok", ok, f"sections outside the allowed set: {bad}")
+    if expect.get("recommend") and expect.get("options"):
+        check("recommends_option", A.recommends_option(answer, expect["options"]),
+              "answer must name every section of at least one valid option")
+
+    truth = A.truth_table(ds, record.get("student_id"), record.get("term_id"))
+    false = A.false_claims(answer, truth, titles)
+    unsupported = A.unsupported_claims(answer, trace, titles)
+    check("academic_claims", not false and not unsupported, f"false={false} unsupported={unsupported}")
+    score["extra"]["false_claims"] = false
+    score["extra"]["unsupported_claims_v2"] = unsupported
+    score["pass"] = all(c["pass"] for c in checks.values())
+    score["scoring_version"] = 2
+    return score
+
+
+def summarize_v2(cases: list[dict], scores: list[dict], records: list[dict], ds) -> dict:
+    s = summarize(cases, scores, records, ds)
+    tokens_in = sum((c.get("prompt_tokens") or 0) for r in records for c in r.get("llm_calls", []))
+    tokens_out = sum((c.get("output_tokens") or 0) for r in records for c in r.get("llm_calls", []))
+    s["scoring_version"] = 2
+    s["assertions_version"] = ASSERTIONS_VERSION
+    s["scoring_note"] = SCORING_V2_NOTE
+    s["false_claims"] = {"count": sum(len(x.get("extra", {}).get("false_claims", [])) for x in scores),
+                         "cases": [x["id"] for x in scores if x.get("extra", {}).get("false_claims")]}
+    s["unsupported_claims_v2"] = {
+        "count": sum(len(x.get("extra", {}).get("unsupported_claims_v2", [])) for x in scores),
+        "cases": [x["id"] for x in scores if x.get("extra", {}).get("unsupported_claims_v2")]}
+    s["tokens"] = {"prompt": tokens_in, "output": tokens_out}
+    s["failed_cases"] = {x["id"]: [k for k, c in x["checks"].items() if not c["pass"]]
+                         for x in scores if not x["pass"]}
+    return s

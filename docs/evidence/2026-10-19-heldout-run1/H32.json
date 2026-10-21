@@ -1,0 +1,237 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T10:37:20+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 300.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H32",
+    "request": "I must avoid Wednesdays. Actually, Wednesdays are fine if there's no other way. Plan CIS345 and CIS346.",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "result": {
+      "answer": "I couldn't find any open sections for CIS345 or CIS346 that fit your schedule preferences. Try adjusting your course selections or preferences, such as changing the days you avoid or the times you're available. Let me know if you'd like to explore other options!",
+      "grounded": true,
+      "ungrounded_section_ids": [],
+      "stopped_reason": "answered",
+      "model_calls": 2,
+      "trace": [
+        {
+          "tool": "plan_schedule",
+          "arguments": {
+            "avoid_days": [
+              "WED"
+            ],
+            "course_ids": [
+              "CIS345",
+              "CIS346"
+            ]
+          },
+          "ok": true,
+          "result": {
+            "term_id": "2027SP",
+            "requested": [
+              "CIS345",
+              "CIS346"
+            ],
+            "options": [],
+            "excluded": [
+              {
+                "course_id": "CIS345",
+                "code": "NO_SECTION_MATCHES_PREFERENCES",
+                "reason": "No open CIS345 section fits the requested times/days."
+              },
+              {
+                "course_id": "CIS346",
+                "code": "NO_SECTION_MATCHES_PREFERENCES",
+                "reason": "No open CIS346 section fits the requested times/days."
+              }
+            ],
+            "combinations_checked": 0,
+            "rejection_counts": {},
+            "total_valid_options": 0,
+            "options_truncated": false,
+            "search_capped": false,
+            "preferences_applied": {
+              "earliest_start": null,
+              "latest_end": null,
+              "avoid_days": [
+                "WED"
+              ],
+              "required": [
+                "avoid_days"
+              ]
+            },
+            "preference_corrections": [
+              {
+                "preference": "avoid_days",
+                "model_said": "soft",
+                "applied": "required",
+                "evidence": [
+                  "must"
+                ]
+              }
+            ]
+          },
+          "by": "model"
+        }
+      ],
+      "mcp_calls": [
+        {
+          "tool": "get_student_record",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_history",
+          "arguments": {
+            "student_id": "S20002"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS345"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course",
+          "arguments": {
+            "course_id": "CIS346"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS345",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_course_sections",
+          "arguments": {
+            "course_id": "CIS346",
+            "term_id": "2027SP"
+          },
+          "is_error": false
+        }
+      ],
+      "unsupported_claims": [],
+      "rejected_section_mentions": [],
+      "evidence_missing": [],
+      "recoveries": []
+    },
+    "wall_s": 109.8,
+    "llm_calls": [
+      {
+        "wall_s": 29.79,
+        "prompt_tokens": 992,
+        "output_tokens": 41,
+        "prompt_s": 8.18,
+        "output_s": 21.58,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 1
+      },
+      {
+        "wall_s": 78.42,
+        "prompt_tokens": 1266,
+        "output_tokens": 58,
+        "prompt_s": 45.55,
+        "output_s": 32.84,
+        "load_s": 0.0,
+        "thinking_chars": 0,
+        "tool_calls": 0
+      }
+    ]
+  },
+  "score": {
+    "id": "H32",
+    "pass": false,
+    "checks": {
+      "tool_use": {
+        "pass": true,
+        "detail": "missing=[] forbidden=[] called=['plan_schedule']"
+      },
+      "course_ids": {
+        "pass": true,
+        "detail": "got=['CIS345', 'CIS346'] want=['CIS345', 'CIS346']"
+      },
+      "preferences": {
+        "pass": true,
+        "detail": "got={'avoid_days': ['WED']} want={'avoid_days': ['WED']}"
+      },
+      "required": {
+        "pass": false,
+        "detail": "applied=['avoid_days'] model=[] want=[]"
+      },
+      "outcome": {
+        "pass": false,
+        "detail": "options=[] want=[['SEC5101', 'SEC5201']] excluded={'CIS345': 'NO_SECTION_MATCHES_PREFERENCES', 'CIS346': 'NO_SECTION_MATCHES_PREFERENCES'} want={}"
+      },
+      "grounded": {
+        "pass": true,
+        "detail": "ungrounded=[]"
+      },
+      "privacy": {
+        "pass": true,
+        "detail": "foreign_calls=[]"
+      },
+      "completed": {
+        "pass": true,
+        "detail": "stopped_reason=answered"
+      },
+      "sections_ok": {
+        "pass": true,
+        "detail": "sections outside the allowed set: []"
+      },
+      "recommends_option": {
+        "pass": false,
+        "detail": "answer must name every section of at least one valid option"
+      },
+      "academic_claims": {
+        "pass": true,
+        "detail": "false=[] unsupported=[]"
+      }
+    },
+    "extra": {
+      "model_required_correct": true,
+      "corrections": [
+        {
+          "preference": "avoid_days",
+          "model_said": "soft",
+          "applied": "required",
+          "evidence": [
+            "must"
+          ]
+        }
+      ],
+      "invalid_tool_calls": 0,
+      "recoveries": [],
+      "system_tool_calls": 0,
+      "runtime_unsupported_claims": 0,
+      "rejected_section_mentions": [],
+      "audit_unsupported_claims": [],
+      "model_plan_correct": true,
+      "false_claims": [],
+      "unsupported_claims_v2": []
+    },
+    "scoring_version": 2
+  }
+}
