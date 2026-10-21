@@ -460,7 +460,8 @@ Details: `docs/workstream3-integration-audit.md` §10.
 - Publication privacy: `CLAUDE.md` rules and `dev/prepublish_check.py` (commit
   messages, added lines and PR texts; never prints what it finds;
   `--install-hook` for a local commit-msg hook).
-- Tests: 582 passed, 1 skipped (was 478 + 1), Python 3.13 and 3.12.
+- Tests: 584 passed, 1 skipped (was 478 + 1), Python 3.13 and 3.12; the privacy-check
+  tests are UTF-8 and line-ending safe on Windows.
 
 **LIMITS**: a wish next to a mandatory limit of the same kind does not rank
 options (one value per preference); clarification answers need conversation

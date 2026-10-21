@@ -98,7 +98,10 @@ def scan_text(text: str, location: str, allow_ai_coauthor: bool = False) -> list
 
 
 def _git(*args: str, cwd: Path | None = None) -> str:
-    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+    # git writes commit messages and diffs as UTF-8; the platform default (cp1252 on
+    # Windows) would garble or reject them
+    return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace").stdout
 
 
 def scan_range(rev_range: str, allow_commits: set[str], allow_ai_coauthor: bool = False,
@@ -128,15 +131,23 @@ def scan_range(rev_range: str, allow_commits: set[str], allow_ai_coauthor: bool 
     return findings, len(commits), added
 
 
+def hook_text() -> str:
+    """The commit-msg hook: a POSIX shell script. Git for Windows runs hooks with its
+    own sh, so the paths use forward slashes and the file keeps LF line endings."""
+    python = Path(sys.executable).as_posix()
+    script = Path(__file__).resolve().as_posix()
+    return ("#!/bin/sh\n# installed by prepublish_check.py --install-hook (local only, not committed)\n"
+            f'exec "{python}" "{script}" --message-file "$1"\n')
+
+
 def install_hook(repo: Path, force: bool = False) -> Path:
     hook = repo / ".git" / "hooks" / "commit-msg"
-    script = Path(__file__).resolve()
-    body = ("#!/bin/sh\n# installed by prepublish_check.py --install-hook (local only, not committed)\n"
-            f'exec "{sys.executable}" "{script}" --message-file "$1"\n')
-    if hook.exists() and hook.read_text() != body and not force:
+    body = hook_text()
+    if hook.exists() and hook.read_text(encoding="utf-8") != body and not force:
         raise SystemExit(f"{hook} exists; use --force to replace it")
     hook.parent.mkdir(parents=True, exist_ok=True)
-    hook.write_text(body)
+    hook.write_text(body, encoding="utf-8", newline="\n")  # no CRLF on Windows: sh would break
+    # Executable bits matter on Linux and macOS; on Windows Git runs the hook without them.
     hook.chmod(hook.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return hook
 

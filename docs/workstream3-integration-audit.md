@@ -37,7 +37,7 @@ by Workstream 3 and still needs confirmation; OPEN = needs a team decision.
 
 Tests: 428 passed, 1 skipped before; **478 passed, 1 skipped** after
 (Python 3.13 and 3.12, Linux; CI on PR #11: the same on Ubuntu and Windows).
-After the quality pass: **582 passed, 1 skipped** (§10.4). The skipped test
+After the quality pass: **584 passed, 1 skipped** (§10.4). The skipped test
 is the opt-in live Ollama test.
 
 ---
@@ -372,7 +372,7 @@ them passes.**
 
 Today (fake MCP server, no other workstream needed):
 
-1. `python -m pytest -q` from `ai-agent/` (expect 582 passed, 1 skipped on
+1. `python -m pytest -q` from `ai-agent/` (expect 584 passed, 1 skipped on
    the quality-pass branch; 478 on PR #11).
 2. `python dev/demo_plan.py S10001 2027SP CIS410` (planner over stdio MCP, no
    model): SEC2002 fits, SEC2001 needs a change (it overlaps S10001's current
@@ -542,7 +542,7 @@ No limit a student stated became weaker.
 
 ### 10.4 Tests
 
-**Local results:** 582 passed, 1 skipped, on Python 3.13 and on Python 3.12
+**Local results:** 584 passed, 1 skipped, on Python 3.13 and on Python 3.12
 (fresh virtual environment from `requirements.txt`), Linux.
 
 **`tests/test_quality_pass.py` (78 tests):**
@@ -563,7 +563,7 @@ No limit a student stated became weaker.
 - in `tests/test_integration_readiness.py`, two tests: the new note text, and
   keeping the section the student is already in is no change.
 
-**`tests/test_prepublish_check.py` (26 tests):** see §10.5.
+**`tests/test_prepublish_check.py` (28 tests):** see §10.5.
 
 **CI** runs when this branch's pull request is opened.
 
@@ -580,3 +580,20 @@ New files:
 
 The rules in `CLAUDE.md` are instructions. The script and the hook enforce
 them only where they are run or installed.
+
+**Windows fix (2026-10-21).** The first CI run of PR #12 failed three of these
+tests on Windows; Ubuntu passed.
+- **Encoding:** test fixtures with an emoji were written in the Windows
+  default encoding (cp1252). The script also read git output that way. All
+  of them are now explicitly UTF-8.
+- **The hook:** the hook test required Unix executable bits, which Windows
+  does not have. Git for Windows runs hooks without them, so that assertion
+  now applies on Linux and macOS only.
+- **The hook file:** it is now written with LF line endings and
+  forward-slash paths, because a CRLF shell script would fail under Git for
+  Windows' `sh`.
+- **New tests:** two, covering the hook file format and UTF-8 commit messages
+  and files.
+- **Implicit encodings:** the privacy-check tests also pass with
+  `-X warn_default_encoding -W error::EncodingWarning`, so they no longer use
+  the platform default encoding anywhere.

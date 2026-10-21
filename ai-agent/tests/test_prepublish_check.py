@@ -4,6 +4,7 @@ Sensitive-looking samples are assembled at run time, so this file itself
 contains no session link, footer, trailer or key that the check would flag.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -69,7 +70,8 @@ def test_ai_coauthor_trailer_can_be_allowed_where_policy_requires_it():
 
 
 def git(repo, *args):
-    return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True,
+                          encoding="utf-8").stdout.strip()
 
 
 @pytest.fixture
@@ -77,7 +79,7 @@ def repo(tmp_path):
     git(tmp_path, "init", "-q", "-b", "main")
     git(tmp_path, "config", "user.email", "student@example.invalid")
     git(tmp_path, "config", "user.name", "Student")
-    (tmp_path / "a.txt").write_text("start\n")
+    (tmp_path / "a.txt").write_text("start\n", encoding="utf-8")
     git(tmp_path, "add", "a.txt")
     git(tmp_path, "commit", "-q", "-m", "start")
     return tmp_path
@@ -89,7 +91,7 @@ def run_main(repo, *args):
 
 def test_range_checks_commit_messages_and_added_lines(repo, capsys):
     base = git(repo, "rev-parse", "HEAD")
-    (repo / "a.txt").write_text(f"start\nconfig {GITHUB_TOKEN}\n")
+    (repo / "a.txt").write_text(f"start\nconfig {GITHUB_TOKEN}\n", encoding="utf-8")
     git(repo, "commit", "-q", "-am", f"Add config\n\n{TRAILER}")
     assert run_main(repo, "--range", f"{base}..HEAD") == 1
     out = capsys.readouterr().out
@@ -99,31 +101,32 @@ def test_range_checks_commit_messages_and_added_lines(repo, capsys):
 
 def test_an_already_published_commit_can_be_acknowledged_but_new_lines_still_fail(repo, capsys):
     base = git(repo, "rev-parse", "HEAD")
-    (repo / "a.txt").write_text("start\nclean change\n")
+    (repo / "a.txt").write_text("start\nclean change\n", encoding="utf-8")
     git(repo, "commit", "-q", "-am", f"Change\n\n{TRAILER}")
     published = git(repo, "rev-parse", "HEAD")
     assert run_main(repo, "--range", f"{base}..HEAD", "--allow-commit", published) == 0
     assert "ACKNOWLEDGED" in capsys.readouterr().out
-    (repo / "a.txt").write_text(f"start\nclean change\n{FOOTER}\n")
+    (repo / "a.txt").write_text(f"start\nclean change\n{FOOTER}\n", encoding="utf-8")
     git(repo, "commit", "-q", "-am", "Docs")
     assert run_main(repo, "--range", f"{base}..HEAD", "--allow-commit", published) == 1
 
 
 def test_text_files_such_as_a_pr_description_are_checked(repo, tmp_path):
     body = tmp_path / "body.md"
-    body.write_text("## Summary\nAll good.\n")
+    body.write_text("## Summary\nAll good.\n", encoding="utf-8")
     assert run_main(repo, "--text-file", str(body)) == 0
-    body.write_text(f"## Summary\nAll good.\n\n{FOOTER}\n\n{SESSION_LINK}\n")
+    body.write_text(f"## Summary\nAll good.\n\n{FOOTER}\n\n{SESSION_LINK}\n", encoding="utf-8")
     assert run_main(repo, "--text-file", str(body)) == 1
 
 
 def test_the_commit_msg_hook_rejects_a_private_link(repo):
     hook = check.install_hook(repo)
-    assert hook.stat().st_mode & 0o100
-    (repo / "a.txt").write_text("start\nmore\n")
+    if os.name != "nt":  # Git for Windows runs hooks without Unix executable bits
+        assert hook.stat().st_mode & 0o100
+    (repo / "a.txt").write_text("start\nmore\n", encoding="utf-8")
     git(repo, "add", "a.txt")
     rejected = subprocess.run(["git", "commit", "-q", "-m", f"Change\n\n{TRAILER}"], cwd=repo,
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert rejected.returncode != 0 and SESSION_LINK not in rejected.stdout + rejected.stderr
     git(repo, "commit", "-q", "-m", "Change without links")
     assert git(repo, "log", "-1", "--format=%s") == "Change without links"
@@ -146,7 +149,30 @@ def test_project_instructions_and_docs_contain_no_private_links_or_footers():
 
 def test_script_runs_from_the_command_line(tmp_path):
     body = tmp_path / "body.md"
-    body.write_text("Plain description.\n")
+    body.write_text("Plain description.\n", encoding="utf-8")
     done = subprocess.run([sys.executable, str(ROOT / "ai-agent" / "dev" / "prepublish_check.py"),
-                           "--text-file", str(body)], capture_output=True, text=True, cwd=ROOT)
+                           "--text-file", str(body)], capture_output=True, text=True, encoding="utf-8", cwd=ROOT)
     assert done.returncode == 0 and "prepublish check: OK" in done.stdout
+
+
+# ------------------------------------------------------------------ cross-platform (Windows CI, 2026-10-21)
+
+def test_the_hook_is_a_posix_script_on_every_platform(repo):
+    hook = check.install_hook(repo)
+    raw = hook.read_bytes()
+    assert b"\r\n" not in raw  # CRLF would break sh on Windows
+    assert raw.startswith(b"#!/bin/sh\n") and b"\\" not in raw  # forward slashes only
+    assert check.install_hook(repo) == hook  # installing again is idempotent
+
+
+def test_unicode_in_commit_messages_and_files_is_read_as_utf8(repo, tmp_path):
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / "notes.md").write_text("caf\u00e9 \u2713 \u0645\u0631\u062d\u0628\u0627\n", encoding="utf-8")
+    git(repo, "add", "notes.md")
+    git(repo, "commit", "-q", "-m", f"Notes \u2713\n\n{FOOTER}")
+    findings, commits, added = check.scan_range(f"{base}..HEAD", set(), cwd=repo)
+    assert commits == 1 and added == 1
+    assert [(f.category, f.location.startswith("commit")) for f in findings] == [("promotional_footer", True)]
+    body = tmp_path / "unicode-body.md"
+    body.write_text("Clean description \u2713 \u0645\u0631\u062d\u0628\u0627\n", encoding="utf-8")
+    assert run_main(repo, "--text-file", str(body)) == 0
