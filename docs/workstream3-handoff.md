@@ -7,6 +7,7 @@
 | Code | `ai-agent/` in this repository |
 | Latest code | PR #9, head `d4eacbf` (this document is on branch `docs/workstream3-handoff`, on top of PR #9) |
 | Status | Research prototype. All five open PRs pass CI. **Not production-ready.** |
+| Integration fixes | Branch `fix/integration-readiness` (after this document; no PR yet): defects D1 to D6 and current registrations, see `docs/workstream3-integration-audit.md` |
 
 This document is for the team (Workstreams 1, 2 and 4) and for whoever runs
 the second held-out evaluation on the lab GPU. Everything below is backed by
@@ -150,8 +151,10 @@ first held-out set (PR #8). Everything after that is development data until
 - **Single-turn only.** There is no conversation history.
 - **No partial schedules.** If the requested courses cannot all fit, no
   "best 2 of 3" is offered.
-- **Existing enrollments are not considered.** `enrollments.json` is not
-  counted toward conflicts or credit hours. OPEN question.
+- **Existing enrollments are not considered** (at PR #9). Fixed on
+  `fix/integration-readiness` when the server has the optional
+  `get_student_enrollments` tool: conflicting options are flagged and ranked
+  last, not removed (OPEN question).
 - **Simple prerequisite rule.** Prerequisites are AND-only, with no minimum
   grades. Only `status: "completed"` satisfies a prerequisite. WORKING
   ASSUMPTION.
@@ -242,6 +245,13 @@ The agent's tool contract (WORKING ASSUMPTION; change names only in
 
 - **Errors:** return MCP tool errors (`is_error: true`), not crashes.
   "Student not found" is reported to the student as a missing record.
+  Proposed on `fix/integration-readiness`: a structured `error_code`
+  (`"NOT_FOUND"`) instead of relying on the text, and no internal details
+  (hosts, SQL, stack traces) in error texts. The agent shows only fixed
+  messages either way.
+- **Optional (proposed on `fix/integration-readiness`):**
+  `get_student_enrollments(student_id, term_id)` returning the sections the
+  student is already registered in, as full section records.
 - **Results:** structured content (or JSON text). List results may be
   wrapped as `{"result": [...]}`.
 - **Transport:** the agent uses `mcp.Client` (MCP Python SDK `>=2.2,<3`),

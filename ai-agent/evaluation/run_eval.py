@@ -88,6 +88,12 @@ async def run_case(case: dict, term_id: str, llm, server_params,
                                             check_security=check_security)
             result = await assistant.run(case["request"])
         record["result"] = result.to_dict()
+        if result.error:
+            # Since 2026-10-19 (audit D2) the assistant catches its own failures and keeps
+            # only a category and a hash, so the record is marked here as before.
+            record["error"] = (f"{result.error['type']}: {result.error['kind']} (exception text not kept; "
+                               f"sha256 {result.error['fingerprint']})")
+            record["error_kind"] = ASSISTANT_ERROR_KINDS.get(result.error["kind"], "other")
     except (LLMError, Exception) as e:  # keep going: a failed case is evidence too
         record["error"] = f"{type(e).__name__}: {e}"
         # anyio wraps the real cause in an ExceptionGroup; keep the leaves too.
@@ -135,6 +141,15 @@ def unload(llm: OllamaLLM) -> None:
         urllib.request.urlopen(req, timeout=60).read()
     except Exception:  # noqa: BLE001 - a failed unload must not stop the run
         pass
+
+
+# AssistantResult.error["kind"] -> error_kind (same categories as classify_error).
+ASSISTANT_ERROR_KINDS = {
+    "llm_timeout": "infrastructure:timeout",
+    "llm_server_error": "infrastructure:model_server",
+    "llm_unreachable": "infrastructure:model_server",
+    "backend_unavailable": "infrastructure:backend",
+}
 
 
 def classify_error(text: str) -> str:

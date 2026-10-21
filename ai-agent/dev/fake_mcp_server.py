@@ -81,5 +81,21 @@ def get_course_sections(course_id: str, term_id: str) -> list[dict]:
     ]
 
 
+@server.tool()
+def get_student_enrollments(student_id: str, term_id: str) -> list[dict]:
+    """Return the sections a student is currently registered in for a term
+    (enrollment status "enrolled"), each with its full section record.
+
+    PROPOSAL (2026-10-19): optional tool so the planner can check new options
+    against current registrations. data/enrollments.json only has section IDs,
+    so the server joins them with sections.json.
+    """
+    if not any(s["student_id"] == student_id for s in _load("students.json")):
+        raise ToolError(f"student {student_id} not found")
+    enrolled = {e["section_id"] for e in _load("enrollments.json")
+                if e["student_id"] == student_id and e.get("status") == "enrolled"}
+    return [s for s in _load("sections.json") if s["section_id"] in enrolled and s["term_id"] == term_id]
+
+
 if __name__ == "__main__":
     server.run(transport="stdio")

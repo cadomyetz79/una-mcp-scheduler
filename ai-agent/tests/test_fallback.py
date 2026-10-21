@@ -106,10 +106,32 @@ async def test_fallback_reports_missing_mcp_data_instead_of_answering():
 
 async def test_no_fallback_when_it_would_drop_the_students_time_wish():
     # (third response: "Sure, that works." confirms an unplanned request, so it gets one revision)
-    result, _ = await ask("Plan CIS376 and CIS410, but I can't do anything before 10am.", [IGNORE] * 3)
+    # A wish code cannot read ("not too late in the day") is not dropped by planning without it.
+    result, _ = await ask("Plan CIS376 and CIS410, ideally not too late in the day.", [IGNORE] * 3)
     assert system_calls(result) == []
     assert [r["type"] for r in result.recoveries] == ["nudge", "not_run"]
     assert result.evidence_missing == ["CIS376", "CIS410"]
+
+
+async def test_fallback_applies_a_mandatory_time_limit_read_from_the_students_words():
+    # Before 2026-10-19 the fallback never ran when a time was stated; now it runs with the
+    # student's own limit as mandatory, so no option can break it.
+    result, _ = await ask("Plan CIS376 and CIS410, but I can't do anything before 10am.", [IGNORE] * 3)
+    [plan] = system_calls(result)
+    assert plan.arguments == {"course_ids": ["CIS376", "CIS410"], "earliest_start": "10:00",
+                              "required_preferences": ["earliest_start"]}
+    assert plan.result["preferences_applied"]["required"] == ["earliest_start"]
+    for option in plan.result["options"]:
+        assert all(m["start"] >= "10:00" for s in option["sections"] for m in s["meetings"])
+    assert not any("SEC1001" in o["section_ids"] for o in plan.result["options"])  # starts 09:30
+
+
+async def test_fallback_asks_instead_of_guessing_an_unclear_mandatory_limit():
+    result, _ = await ask("Plan CIS376 and CIS410, but I can't do mornings.", [IGNORE] * 3)
+    assert system_calls(result) == []
+    assert [r["type"] for r in result.recoveries] == ["nudge", "clarification"]
+    assert result.answer_source == "system_clarification" and "earliest time" in result.answer
+    assert result.clarification[0]["preference"] == "earliest_start"
 
 
 async def test_no_fallback_for_another_students_request():

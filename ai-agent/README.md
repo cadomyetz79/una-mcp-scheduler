@@ -17,6 +17,7 @@ ai-agent/
 │   ├── assistant.py    # LLM tool-calling loop + guardrails
 │   ├── evidence.py     # deterministic evidence rules for answers (claims, sections, named sections)
 │   ├── preference_language.py  # how strongly the student states each time/day wish
+│   ├── constraints.py  # time/day limits read from the student's words (enforced, or asked about)
 │   ├── security.py     # trust boundaries: input inspection, tool-data filter, output guard
 │   └── safe_answer.py  # deterministic answers when the model's answer cannot be shown
 ├── prompts/
@@ -37,7 +38,8 @@ ai-agent/
 Not built yet: Entra identity (student_id is currently passed in) and the
 connection to the real Mock Banner API / MCP server. Team handoff (status,
 open PRs, integration requirements, how to run `heldout2`):
-`docs/workstream3-handoff.md`.
+`docs/workstream3-handoff.md`. Integration-readiness audit and the fixes on
+`fix/integration-readiness`: `docs/workstream3-integration-audit.md`.
 
 ## Architecture so far
 
@@ -83,8 +85,13 @@ WORKING ASSUMPTION — the fake server uses these; Workstream 2 owns the real na
 | `get_course` | `course_id` | course object; error if unknown |
 | `search_courses` | `query`, `subject` (both optional) | list of courses |
 | `get_course_sections` | `course_id`, `term_id` | list of `sections.json` records |
+| `get_student_enrollments` (optional, proposed 2026-10-19) | `student_id`, `term_id` | sections the student is already registered in, as full `sections.json` records |
 
-Errors are returned as MCP tool errors (`is_error: true`), not crashes.
+Errors are returned as MCP tool errors (`is_error: true`), not crashes,
+ideally with a structured `error_code` (`"NOT_FOUND"`) and without internal
+details in the text. The agent never shows error text to the model or the
+student (it keeps only a hash). If the enrollments tool is missing, answers
+say that current registrations could not be checked.
 
 ## Design rule
 
@@ -400,3 +407,34 @@ author also wrote the rules (H32 documented).
 **LIMITS**: keyword input inspection misses half of the new set's attacks;
 paraphrased/translated leaks are not detected; single-turn only; one model on
 CPU; rules and most tests written by the same developer. Not production-ready.
+
+### 2026-10-19 — Integration-readiness fixes (branch `fix/integration-readiness`)
+
+Audit and details: `docs/workstream3-integration-audit.md`.
+
+**CONFIRMED (tests; no model was run)**
+- D1/D3: backend errors become fixed messages with a category
+  (`not_found`, `unknown_tool`, `tool_error`, `backend_unavailable`,
+  `backend_data_error`); their text is never sent to the model, shown to the
+  student or logged (hash only). Outages are no longer reported as "course
+  does not exist".
+- D2: any unexpected failure ends the run with a fixed answer,
+  `stopped_reason="error"` and a category; `run_eval.py` maps the category to
+  `error_kind`, so infrastructure retries still work.
+- D4: `agent/constraints.py` reads time/day limits from the student's words
+  and enforces them when the model leaves them out or gets them wrong; an
+  unclear mandatory limit gets a fixed clarification question instead of a
+  schedule. The system-run plan now runs with reliably read limits.
+- D5/D6: per-request state in a run object; each result's MCP trace holds
+  only its own calls (`BannerTools.run_log()`). Concurrency tests with
+  different students and constraints fail on the old code and pass now.
+- Current registrations: optional `get_student_enrollments` tool (fake
+  server only); options that repeat, overlap or exceed the credit limit with
+  current classes are flagged, ranked last and explained; "could not check"
+  is said when the tool is missing.
+- Tests: 478 passed, 1 skipped (was 428 + 1), Python 3.13 and 3.12.
+
+**LIMITS**: not tested against any real WS1/WS2/WS4 component; constraint
+reading is English and keyword based; options conflicting with current
+registrations are flagged, not removed (team decision); still single-turn,
+no partial schedules. Not integration-ready.

@@ -136,40 +136,72 @@ def _cues(fragment: str) -> tuple[set[str], set[str]]:
     return optional, mandatory
 
 
+def fragments(request: str, linker=None) -> list[dict]:
+    """The request split into fragments, with each fragment's preference
+    targets and strength cues, after lending (rule 4 above).
+
+    `linker` (text -> set of preferences) replaces the keyword linking of
+    rule 2; agent/constraints.py passes its own, value-aware linking.
+
+    Each entry: text, sentence (index), targets, optional, mandatory (own cues), cue_only (a
+    fragment without a preference that lent its cues), and for fragments that
+    name a preference: lent_optional / lent_mandatory (cues lent to it).
+    Used by classify() (per preference) and agent/constraints.py (per fragment).
+    """
+    out: list[dict] = []
+    previous: dict[str, dict] = {}  # target -> last fragment naming it in an earlier sentence
+    link = linker or _targets
+    for n, sentence in enumerate(_SENTENCES.split(request or "")):
+        frags = [f.strip() for f in _FRAGMENTS.split(sentence) if f and f.strip()]
+        info = [{"text": f, "sentence": n, "targets": set(link(f)), **dict(zip(("optional", "mandatory"), _cues(f))),
+                 "cue_only": False, "lent_optional": set(), "lent_mandatory": set()} for f in frags]
+        entries = []
+        for i, f in enumerate(info):
+            if f["targets"]:
+                entries.append(f)
+                continue
+            if _COURSE.search(f["text"]) or not (f["optional"] or f["mandatory"]):
+                continue
+            # cue-only fragment: lend cues to the nearest fragment naming a preference
+            # in the same sentence, else to the previous sentence's preferences
+            # ("I can't do Fridays. If there's no other way, that's fine.")
+            neighbours = [j for j in range(i - 1, -1, -1) if info[j]["targets"]] or \
+                         [j for j in range(i + 1, len(info)) if info[j]["targets"]]
+            if neighbours:
+                receivers = [info[neighbours[0]]]
+            elif previous:
+                receivers = list({id(r): r for r in previous.values()}.values())
+            else:
+                continue
+            # bare "fine"/"okay" only relax the preference named in their own fragment
+            opt = {c for c in f["optional"] if c not in RELAX_CUES}
+            man = {c for c in f["mandatory"] if c.removeprefix("not ") not in RELAX_CUES}
+            if not (opt or man):
+                continue
+            targets = set().union(*(r["targets"] for r in receivers)) if neighbours else set(previous)
+            for r in receivers:
+                r["lent_optional"] |= opt
+                r["lent_mandatory"] |= man
+            entries.append({**f, "targets": targets, "optional": opt, "mandatory": man, "cue_only": True})
+        out += entries
+        for f in info:
+            for t in f["targets"]:
+                previous[t] = f
+        # only the latest sentence that named a preference lends to later cue-only sentences
+        named = [f for f in info if f["targets"]]
+        if named:
+            previous = {t: f for f in named for t in f["targets"]}
+    return out
+
+
 def classify(request: str) -> dict[str, dict]:
     """Return, per preference, the verdict and the cues/fragments behind it."""
     found = {p: {"optional": set(), "mandatory": set(), "fragments": []} for p in PREFS}
-    previous_targets: set[str] = set()  # preferences named by the latest earlier sentence
-    for sentence in _SENTENCES.split(request or ""):
-        frags = [f.strip() for f in _FRAGMENTS.split(sentence) if f and f.strip()]
-        info = [(f, _targets(f), *_cues(f)) for f in frags]
-        for i, (frag, targets, opt, man) in enumerate(info):
-            if not targets:
-                if _COURSE.search(frag) or not (opt or man):
-                    continue
-                # cue-only fragment: lend cues to the nearest fragment naming a preference
-                # in the same sentence, else to the previous sentence's preferences
-                # ("I can't do Fridays. If there's no other way, that's fine.")
-                neighbours = [j for j in range(i - 1, -1, -1) if info[j][1]] or \
-                             [j for j in range(i + 1, len(info)) if info[j][1]]
-                if neighbours:
-                    targets = info[neighbours[0]][1]
-                elif previous_targets:
-                    targets = previous_targets
-                else:
-                    continue
-                # bare "fine"/"okay" only relax the preference named in their own fragment
-                opt = {c for c in opt if c not in RELAX_CUES}
-                man = {c for c in man if c.removeprefix("not ") not in RELAX_CUES}
-                if not (opt or man):
-                    continue
-            for p in targets:
-                found[p]["optional"] |= opt
-                found[p]["mandatory"] |= man
-                found[p]["fragments"].append(frag)
-        named = set().union(*(t for _, t, _, _ in info)) if info else set()
-        if named:
-            previous_targets = named
+    for f in fragments(request):
+        for p in f["targets"]:
+            found[p]["optional"] |= f["optional"]
+            found[p]["mandatory"] |= f["mandatory"]
+            found[p]["fragments"].append(f["text"])
 
     out = {}
     for p, f in found.items():

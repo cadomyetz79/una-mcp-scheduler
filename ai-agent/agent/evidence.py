@@ -372,6 +372,56 @@ def requested_section_note(missing: list[dict]) -> str:
     return "About the sections you named: " + "; ".join(m["note"] for m in missing) + "."
 
 
+NOT_CHECKED_NOTE = ("Note: I couldn't check the classes you're already registered for this term, so please make "
+                    "sure these sections don't overlap with them before you register.")
+
+
+def registration_notes(trace: list) -> list[str]:
+    """Fixed sentences about the student's current registrations, from the
+    latest plan_schedule result (integration audit 2026-10-19).
+
+    Options that repeat a registered course, overlap a current class or go
+    over the credit limit together with current classes are kept but ranked
+    last by the planner; these notes make sure the student is told. If the
+    backend could not list registrations, the student is told that instead.
+    Current classes are named by course and meeting time, not section ID."""
+    plans = _plans(trace)
+    if not plans:
+        return []
+    result = _get(plans[-1], "result")
+    options = result.get("options") or []
+    if not (options or result.get("requested_sections")):
+        return []
+    checked = result.get("current_registrations_checked")
+    if checked is False:
+        return [NOT_CHECKED_NOTE]
+    if not checked:
+        return []
+    notes = []
+    for a in result.get("already_registered") or []:
+        notes.append(f"Note: you're already registered for {a['course_id']} this term "
+                     f"({_when(a.get('current_section') or {})}), so you don't need another section of it.")
+    current = {s["course_id"]: s for s in result.get("current_registrations") or []}
+    overlaps: dict[str, set[str]] = {}
+    over_limit = []
+    for o in options:
+        reg = o.get("current_registration") or {}
+        for c in reg.get("conflicts", []):
+            overlaps.setdefault(c["current_course_id"], set()).add(c["section_id"])
+        if reg.get("exceeds_credit_limit"):
+            over_limit.append(o)
+    for cid, sids in sorted(overlaps.items()):
+        when = f" ({_when(current[cid])})" if cid in current else ""
+        notes.append(f"Note: {', '.join(sorted(sids))} {'overlaps' if len(sids) == 1 else 'overlap'} your current "
+                     f"{cid} class{when}.")
+    if over_limit:
+        total = max(o["current_registration"]["credit_hours_with_current"] for o in over_limit)
+        notes.append(f"Note: together with the classes you're already registered for, "
+                     f"{'this option' if len(over_limit) == len(options) == 1 else 'some options'} would go over "
+                     f"your credit-hour limit (up to {total} credit hours).")
+    return notes
+
+
 def has_preference_wording(request: str) -> bool:
     """True if the request mentions times or days, so a plan without the
     student's preferences would ignore what they asked for."""

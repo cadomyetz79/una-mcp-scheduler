@@ -30,7 +30,7 @@ from scheduling.validators import (
     validate_schedule,
 )
 
-from .banner_tools import BannerTools, ToolCallError
+from .banner_tools import BackendError, BannerTools, ToolCallError
 
 MAX_COMBINATIONS = 10_000  # safety cap on brute-force enumeration
 
@@ -107,6 +107,12 @@ class PlanResult:
     # Specific sections the student named, checked as one combination by
     # validate_schedule (None when no sections were named).
     requested_sections: dict | None = None
+    # Current registrations this term (see plan_schedules): True = checked,
+    # False = the backend could not say (the answer must then say so),
+    # None = not attempted.
+    current_registrations_checked: bool | None = None
+    current_registrations: list[dict] = field(default_factory=list)
+    already_registered: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -140,25 +146,69 @@ async def plan_schedules(
     preferences: Preferences | None = None,
     max_options: int = 5,
     requested_sections: list[str] | None = None,
+    check_current_registrations: bool = True,
 ) -> PlanResult:
     """requested_sections: section IDs the student named. They are checked as
     one combination with validate_schedule (time conflicts, capacity,
     prerequisites, ...), and a section that is not a section of the requested
     courses in this term is reported as not found. This answers "can I take
     SEC5001 with SEC5301?" deterministically instead of leaving the model to
-    infer it from which options are missing."""
+    infer it from which options are missing.
+
+    Current registrations (integration audit 2026-10-19): if the backend can
+    list the sections the student is already registered in this term, every
+    option is checked against them: a requested course the student is
+    already registered for, a time overlap with a current class, and the
+    credit limit including current classes. Whether such options should be
+    removed is an open team decision (it depends on what an enrollment means
+    in Workstream 1's data), so they are NOT removed: they are flagged
+    (`current_registration`, `compatible_with_current_registration`) and
+    ranked after compatible options, and the assistant states the problem.
+    If the backend cannot list registrations, `current_registrations_checked`
+    is False and the assistant says so; it is never silently ignored.
+
+    Course lookups: only a "not found" answer makes a course UNKNOWN_COURSE.
+    Any other backend failure propagates (BackendError), so an outage is never
+    reported as "this course does not exist"."""
     prefs = preferences or Preferences()
     requested = list(dict.fromkeys(course_ids))  # de-duplicate, keep order
     result = PlanResult(student_id, term_id, requested)
 
     student = await tools.student(student_id)
 
+    current: list[Section] = []
+    get_current = getattr(tools, "enrollments", None)
+    if check_current_registrations and get_current is not None:
+        listed = await get_current(student_id, term_id)
+        result.current_registrations_checked = listed is not None
+        current = [s for s in (listed or []) if s.term_id == term_id]
+        result.current_registrations = [_describe(s) for s in current]
+
     courses = {}
     for cid in requested:
         try:
             courses[cid] = await tools.course(cid)
-        except ToolCallError:
+        except ToolCallError as e:
+            if e.code != "not_found":
+                raise
             result.excluded.append(Excluded(cid, "UNKNOWN_COURSE", f"{cid} does not exist."))
+
+    # Credit hours of current registrations (None if a course cannot be read).
+    current_credits: int | None = 0
+    for cid in dict.fromkeys(s.course_id for s in current):
+        if cid in courses:
+            current_credits += courses[cid].credit_hours
+            continue
+        try:
+            current_credits += (await tools.course(cid)).credit_hours
+        except BackendError:
+            current_credits = None
+            break
+    registered_courses = {s.course_id: s for s in current}
+    for cid in requested:
+        if cid in registered_courses:
+            result.already_registered.append(
+                {"course_id": cid, "current_section": _describe(registered_courses[cid])})
 
     candidates: dict[str, list[Section]] = {}
     all_sections: dict[str, Section] = {}
@@ -195,7 +245,8 @@ async def plan_schedules(
 
     if requested_sections:
         result.requested_sections = check_requested_sections(
-            student, list(dict.fromkeys(requested_sections)), term_id, all_sections, courses, requested)
+            student, list(dict.fromkeys(requested_sections)), term_id, all_sections, courses, requested,
+            current)
 
     if not candidates:
         return result
@@ -213,22 +264,26 @@ async def plan_schedules(
         check = validate_schedule(student, ids, term_id, all_sections, courses)
         if check.valid:
             misses = [v for sec in combo for v in prefs.violations(sec)]
-            valid.append(
-                {
-                    "section_ids": ids,
-                    "total_credit_hours": check.total_credit_hours,
-                    "meets_all_preferences": not misses,
-                    "preference_violations": misses,
-                    "sections": [_describe(s) for s in combo],
-                }
-            )
+            option = {
+                "section_ids": ids,
+                "total_credit_hours": check.total_credit_hours,
+                "meets_all_preferences": not misses,
+                "preference_violations": misses,
+                "sections": [_describe(s) for s in combo],
+            }
+            if result.current_registrations_checked:
+                option.update(_against_current(combo, current, courses, current_credits,
+                                               student.max_credit_hours))
+            valid.append(option)
         else:
             rejections.update(i.code for i in check.issues)
 
-    # Rank: fewest missed preferences, then least total minutes missed.
+    # Rank: compatible with current registrations first, then fewest missed
+    # preferences, then least total minutes missed.
     # sorted() is stable, so ties keep enumeration order (deterministic).
     valid.sort(
         key=lambda o: (
+            not o.get("compatible_with_current_registration", True),
             len(o["preference_violations"]),
             sum(v["excess_minutes"] for v in o["preference_violations"]),
         )
@@ -246,9 +301,44 @@ async def plan_schedules(
     return result
 
 
+def _overlaps(a: Section, b: Section) -> bool:
+    return any(ma.overlaps(mb) for ma in a.meetings for mb in b.meetings)
+
+
+def _against_current(combo, current: list[Section], courses: dict, current_credits: int | None,
+                     limit: int) -> dict:
+    """How one option fits with the sections the student is already registered in."""
+    current_ids = {s.section_id for s in current}
+    current_courses = {s.course_id for s in current}
+    repeats = sorted({s.course_id for s in combo if s.course_id in current_courses})
+    conflicts = [
+        {"section_id": a.section_id, "course_id": a.course_id,
+         "current_section_id": b.section_id, "current_course_id": b.course_id}
+        for a in combo if a.section_id not in current_ids
+        for b in current if b.course_id != a.course_id and _overlaps(a, b)
+    ]
+    # Credits if the option is added to current registrations (a course already
+    # registered is counted once). None if a current course could not be read.
+    with_current = None
+    if current_credits is not None:
+        with_current = current_credits + sum(courses[s.course_id].credit_hours
+                                             for s in combo if s.course_id not in current_courses)
+    exceeds = with_current is not None and with_current > limit
+    return {
+        "current_registration": {
+            "repeats_registered_course": repeats,
+            "conflicts": conflicts,
+            "credit_hours_with_current": with_current,
+            "exceeds_credit_limit": exceeds,
+        },
+        "compatible_with_current_registration": not repeats and not conflicts and not exceeds,
+    }
+
+
 def check_requested_sections(student, section_ids: list[str], term_id: str,
                              all_sections: dict[str, Section], courses: dict,
-                             requested: list[str] | None = None) -> dict:
+                             requested: list[str] | None = None,
+                             current: list[Section] | None = None) -> dict:
     """Validate the student's named sections as one combination.
 
     not_found_reason completes the sentence "<section> ...": a section is
@@ -262,6 +352,12 @@ def check_requested_sections(student, section_ids: list[str], term_id: str,
         check = validate_schedule(student, found, term_id, all_sections, courses)
         issues = [{"code": i.code, "message": i.message, "section_ids": list(i.section_ids)}
                   for i in check.issues]
+        for sid in found:
+            a = all_sections[sid]
+            for b in current or []:
+                if b.section_id != sid and b.course_id != a.course_id and _overlaps(a, b):
+                    issues.append({"code": "CONFLICTS_WITH_CURRENT_REGISTRATION", "section_ids": [sid],
+                                   "message": f"{sid} ({a.course_id}) overlaps your current {b.course_id} class."})
     return {
         "section_ids": section_ids,
         "sections": [_describe(all_sections[sid]) for sid in found],
