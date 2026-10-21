@@ -34,16 +34,21 @@ sys.path.insert(0, str(ROOT))
 from mcp import Client  # noqa: E402
 from mcp.client.stdio import StdioServerParameters  # noqa: E402
 
-from agent.assistant import SchedulingAssistant  # noqa: E402
+from agent.assistant import INTERNAL_MESSAGES, PROMPT_PATH, TOOL_SPECS, SchedulingAssistant  # noqa: E402
 from agent.banner_tools import BannerTools  # noqa: E402
 from agent.llm import LLMError, OllamaLLM, ScriptedLLM  # noqa: E402
+from agent.security import LeakGuard, protected_texts, redact_for_log  # noqa: E402
 from evaluation.scoring import score_case, score_case_v2, summarize, summarize_v2  # noqa: E402
 from scheduling.loader import load_dataset  # noqa: E402
 
 CASES_PATH = Path(__file__).resolve().with_name("cases.json")
 DATASETS = {
     "dev": CASES_PATH,  # development set (19 cases); its v1 results are historical evidence
+    # held-out set (34 cases): development data since the security-hardening work
     "heldout": Path(__file__).resolve().parent / "heldout" / "cases.json",
+    "security": Path(__file__).resolve().parent / "security" / "live_cases.json",  # development data
+    # second held-out set, pre-registered for future generalisation claims (heldout2/README.md)
+    "heldout2": Path(__file__).resolve().parent / "heldout2" / "cases.json",
 }
 DEV_V2_OVERLAY = Path(__file__).resolve().with_name("dev_scoring_v2.json")
 SERVER = ROOT / "dev" / "fake_mcp_server.py"
@@ -70,7 +75,8 @@ def load_cases(ids: list[str] | None = None, dataset: str = "dev", scoring_versi
 
 
 async def run_case(case: dict, term_id: str, llm, server_params,
-                   check_preference_language: bool = True, check_evidence: bool = True) -> dict:
+                   check_preference_language: bool = True, check_evidence: bool = True,
+                   check_security: bool = True) -> dict:
     record = {"case_id": case["id"], "request": case["request"], "student_id": case["student_id"],
               "term_id": term_id}
     started = time.perf_counter()
@@ -78,7 +84,8 @@ async def run_case(case: dict, term_id: str, llm, server_params,
         async with Client(server_params) as client:
             assistant = SchedulingAssistant(BannerTools(client), llm, case["student_id"], term_id,
                                             check_preference_language=check_preference_language,
-                                            check_evidence=check_evidence)
+                                            check_evidence=check_evidence,
+                                            check_security=check_security)
             result = await assistant.run(case["request"])
         record["result"] = result.to_dict()
     except (LLMError, Exception) as e:  # keep going: a failed case is evidence too
@@ -101,12 +108,45 @@ async def run_case(case: dict, term_id: str, llm, server_params,
     return record
 
 
+def redact_record(record: dict, term_id: str) -> dict:
+    """Evaluation records never keep internal instructions or data verbatim.
+
+    With the security layer on, a leaking answer is already replaced; this also
+    covers ablation runs (--no-security-check), where it would be returned.
+    The scorer runs before redaction, on the real answer."""
+    answer = (record.get("result") or {}).get("answer")
+    if answer:
+        guard = LeakGuard(protected_texts(
+            PROMPT_PATH.read_text(encoding="utf-8").replace("{term_id}", term_id), TOOL_SPECS, INTERNAL_MESSAGES))
+        logged = redact_for_log(answer, guard)
+        if logged != answer:
+            record["result"]["answer"] = logged
+            record["answer_redacted_in_log"] = True
+    return record
+
+
+def unload(llm: OllamaLLM) -> None:
+    """Unload the model from the Ollama server (infrastructure only; errors ignored)."""
+    import urllib.request
+
+    req = urllib.request.Request(f"{llm.host}/api/generate", headers={"Content-Type": "application/json"},
+                                 data=json.dumps({"model": llm.model, "keep_alive": 0}).encode())
+    try:
+        urllib.request.urlopen(req, timeout=60).read()
+    except Exception:  # noqa: BLE001 - a failed unload must not stop the run
+        pass
+
+
 def classify_error(text: str) -> str:
     """Infrastructure vs. other failures, from the error text only (not from scores)."""
     t = text.lower()
     if "timed out" in t or "timeout" in t:
         return "infrastructure:timeout"
     if "ollama returned 5" in t or "llama-server process has terminated" in t or "cannot reach ollama" in t:
+        return "infrastructure:model_server"
+    # the model server was stopped while answering (e.g. restarted at the sandbox's time limit);
+    # added 2026-10-19 after security run 3, where this was classified "other"
+    if "remotedisconnected" in t or "remote end closed connection" in t or "connection reset" in t:
         return "infrastructure:model_server"
     return "other"
 
@@ -119,7 +159,9 @@ def write_markdown(path: Path, meta: dict, summary: dict, scores: list[dict], re
         f"- Mode: {meta['mode']}; model: {meta.get('model')}; think: {meta.get('think')}; "
         f"num_ctx: {meta.get('num_ctx')}",
         f"- Machine: {meta['machine']}",
-        f"- Preference check: {meta.get('preference_check')}; evidence check: {meta.get('evidence_check')}",
+        f"- Preference check: {meta.get('preference_check')}; evidence check: {meta.get('evidence_check')}; "
+        f"security checks: {meta.get('security_check', 'n/a (before 2026-10-19 security work)')}; "
+        f"num_predict: {meta.get('num_predict')}",
         f"- Cases passed: {summary['cases']['passed']}/{summary['cases']['total']}"
         f" (missing: {', '.join(summary.get('cases_missing', [])) or 'none'})",
         f"- Preference classification: model {summary['preference_classification']['model_raw']['passed']}/"
@@ -179,6 +221,15 @@ async def main() -> None:
                    help="ablation: let the model's required_preferences stand unchecked")
     p.add_argument("--no-evidence-check", action="store_true",
                    help="ablation: no evidence orchestration / claim check (agent/evidence.py)")
+    p.add_argument("--no-security-check", action="store_true",
+                   help="ablation: no input inspection / output guard (agent/security.py); unverified "
+                        "answers are returned flagged as before 2026-10-19")
+    p.add_argument("--num-predict", type=int,
+                   help="cap on output tokens per model call (default: no cap)")
+    p.add_argument("--unload-between-cases", action="store_true",
+                   help="infrastructure: ask Ollama to unload the model after each case (keep_alive 0), so "
+                        "memory held after a long case is released before the next one; the reload time is "
+                        "part of the next case's first call (load_s)")
     p.add_argument("--resume", action="store_true",
                    help="keep finished cases already in --out and run only the missing ones")
     p.add_argument("--summarize-only", action="store_true",
@@ -203,6 +254,9 @@ async def main() -> None:
         "llm_timeout_s": a.timeout,
         "preference_check": not a.no_preference_check,
         "evidence_check": not a.no_evidence_check,
+        "security_check": not a.no_security_check,
+        "num_predict": a.num_predict,
+        "unload_between_cases": a.unload_between_cases,
         "cases_version": data["version"],
         "dataset": a.dataset,
         "data_dir": str(data_dir_of(data).relative_to(ROOT.parent)),
@@ -212,7 +266,8 @@ async def main() -> None:
     params = StdioServerParameters(command=sys.executable, args=[str(SERVER)],
                                    env={**os.environ, "UNA_DATA_DIR": str(data_dir_of(data))})
     live_llm = None if a.oracle else OllamaLLM(model=a.model, think=False if a.no_think else None,
-                                               num_ctx=a.num_ctx, timeout=a.timeout)
+                                               num_ctx=a.num_ctx, timeout=a.timeout,
+                                               num_predict=a.num_predict)
 
     records, scores = [], []
     saved_meta = None
@@ -233,14 +288,18 @@ async def main() -> None:
         llm = ScriptedLLM(case["oracle"]) if a.oracle else live_llm
         record = await run_case(case, data["term_id"], llm, params,
                                 check_preference_language=not a.no_preference_check,
-                                check_evidence=not a.no_evidence_check)
+                                check_evidence=not a.no_evidence_check,
+                                check_security=not a.no_security_check)
         score = rescore(case, record)
+        record = redact_record(record, data["term_id"])
         records.append(record)
         scores.append(score)
         path.write_text(
             json.dumps({"meta": meta, "record": record, "score": score}, indent=2), encoding="utf-8")
         failed = [k for k, c in score["checks"].items() if not c["pass"]]
         print(f"{case['id']} pass={score['pass']} wall={record['wall_s']}s failed={failed}", flush=True)
+        if a.unload_between_cases and live_llm is not None:
+            unload(live_llm)
 
     if a.summarize_only and saved_meta:
         # Keep the settings of the run that produced the records; note the rescoring.

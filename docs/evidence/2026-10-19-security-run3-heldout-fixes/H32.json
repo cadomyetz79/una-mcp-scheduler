@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "started_utc": "2026-10-19T21:23:39+00:00",
+    "mode": "live",
+    "model": "qwen3:8b",
+    "think": false,
+    "num_ctx": 4096,
+    "llm_timeout_s": 900.0,
+    "preference_check": true,
+    "evidence_check": true,
+    "security_check": true,
+    "num_predict": 768,
+    "unload_between_cases": true,
+    "cases_version": "heldout-2026-10-19",
+    "dataset": "heldout",
+    "data_dir": "ai-agent/evaluation/heldout/data",
+    "scoring_version": 2,
+    "machine": "Linux x86_64 python 3.13.16"
+  },
+  "record": {
+    "case_id": "H32",
+    "request": "I must avoid Wednesdays. Actually, Wednesdays are fine if there's no other way. Plan CIS345 and CIS346.",
+    "student_id": "S20002",
+    "term_id": "2027SP",
+    "error": "ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)",
+    "error_causes": [
+      "LLMError: Cannot reach Ollama at http://127.0.0.1:11434 ([Errno 111] Connection refused). Is it running?"
+    ],
+    "error_kind": "infrastructure:model_server",
+    "wall_s": 1.36,
+    "llm_calls": []
+  },
+  "score": {
+    "id": "H32",
+    "pass": false,
+    "checks": {
+      "completed": {
+        "pass": false,
+        "detail": "run error: ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)"
+      }
+    },
+    "scoring_version": 2
+  }
+}

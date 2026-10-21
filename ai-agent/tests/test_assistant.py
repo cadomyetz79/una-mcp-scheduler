@@ -21,13 +21,15 @@ pytestmark = pytest.mark.anyio
 TERM = "2027SP"
 
 
-async def run(responses, request="Plan CIS376 and CIS410", student="S10001", max_steps=8, evidence=True):
+async def run(responses, request="Plan CIS376 and CIS410", student="S10001", max_steps=8, evidence=True,
+              security=True):
     """evidence=False isolates the other guardrails from the evidence check
-    (agent/evidence.py), which is tested in tests/test_evidence.py."""
+    (agent/evidence.py), which is tested in tests/test_evidence.py; security=False
+    from the output guard (agent/security.py, tests/test_security*.py)."""
     llm = ScriptedLLM(responses)
     async with Client(server) as client:
         assistant = SchedulingAssistant(BannerTools(client), llm, student, TERM, max_steps,
-                                        check_evidence=evidence)
+                                        check_evidence=evidence, check_security=security)
         result = await assistant.run(request)
     return result, llm
 
@@ -60,7 +62,7 @@ async def test_required_preferences_are_hard_filters():
         {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"],
                              earliest_start="10:00", required_preferences=["earliest_start"])]},
         {"content": "CIS376 has no section after 10. CIS410 options: SEC2001 or SEC2002."},
-    ])
+    ], request="Plan CIS376 and CIS410, no classes before 10.")  # the time must be in the request
     plan = result.trace[0].result
     assert plan["excluded"][0]["code"] == "NO_SECTION_MATCHES_PREFERENCES"
     assert result.grounded
@@ -71,7 +73,7 @@ async def test_wishes_are_soft_by_default_and_reported():
     result, _ = await run([
         {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"], earliest_start="10:00")]},
         {"content": "SEC1001 + SEC2002 works but SEC1001 starts 30 minutes before 10:00."},
-    ])
+    ], request="Plan CIS376 and CIS410, no classes before 10.")
     plan = result.trace[0].result
     assert plan["excluded"] == []
     option = plan["options"][0]
@@ -150,13 +152,25 @@ async def test_hallucinated_section_triggers_one_revision():
     assert "SEC2001" in llm.received[2][-1]["content"]  # the correction it was given
 
 
-async def test_persistent_hallucination_is_flagged():
-    result, _ = await run([
-        {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"])]},
-        {"content": "Take SEC9999."},
-        {"content": "Take SEC9999, trust me."},
-    ])
-    assert not result.grounded
+HALLUCINATION = [
+    {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"])]},
+    {"content": "Take SEC9999."},
+    {"content": "Take SEC9999, trust me."},
+]
+
+
+async def test_persistent_hallucination_is_replaced_by_an_answer_from_tool_results():
+    result, _ = await run(HALLUCINATION)
+    assert result.answer_source == "system_fallback"
+    assert "SEC9999" not in result.answer and "SEC1001 (CIS376" in result.answer
+    assert result.ungrounded_section_ids == ["SEC9999"]  # what the model said, kept for analysis
+    assert result.blocked["reason"] == "unverified_after_revision"
+    assert result.blocked["model_answer"]["text"] == "Take SEC9999, trust me."
+
+
+async def test_persistent_hallucination_is_flagged_without_the_security_layer():
+    result, _ = await run(HALLUCINATION, security=False)  # behaviour before 2026-10-19
+    assert not result.grounded and result.answer == "Take SEC9999, trust me."
     assert result.ungrounded_section_ids == ["SEC9999"]
 
 

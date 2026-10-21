@@ -1,4 +1,12 @@
-"""Answer-level assertions for scoring v2 (evaluation only). Current: v2.1.
+"""Answer-level assertions for scoring v2 (evaluation only). Current: v2.2.
+
+v2.2 (2026-10-19, found on the security live set SL11 - development data -
+before any run of the second held-out set): in "Since you have already
+completed the prerequisite CIS236, you are eligible to take this course" the
+eligibility claim is about "this course", not about CIS236. A course named
+right after "prerequisite", "requires", "completed", ... in a clause is a
+prerequisite mention and is no longer the subject of a claim. v2.1 is in
+commit 0b4030e; results are reported under both.
 
 v2.1 (2026-10-19, after freezing, found on the DEVELOPMENT set E19 before any
 held-out result was inspected): "X is not available for you because it
@@ -135,11 +143,28 @@ def recommends_option(answer: str, options: list[list[str]]) -> bool:
     return any(all(sid in answer for sid in option) for option in options)
 
 
+PREREQ_WORD = re.compile(r"\b(prerequisites?|prereqs?|requires?|required|completed?|completing|finished|"
+                         r"corequisites?)\b", re.I)
+_MENTION_END = re.compile(r"[,;:.!?)]|\s(so|but|which|and you)\s", re.I)
+
+
+def _prereq_mentions(clause: str) -> set[str]:
+    """Course IDs named as prerequisites/corequisites ("completed the prerequisite CIS236")."""
+    found: set[str] = set()
+    for m in PREREQ_WORD.finditer(clause):
+        rest = clause[m.end():]
+        end = _MENTION_END.search(rest)
+        found |= _ids(rest[: end.start()] if end else rest)
+    return found
+
+
 def _about(clause: str, match: re.Match, titles: dict[str, str], before: bool) -> set[str]:
     """Courses a claim is about: the subject before the phrase (availability) or the
-    object after it (eligibility); all courses in the clause if that side has none."""
+    object after it (eligibility); all courses in the clause if that side has none.
+    v2.2: never a course named only as a prerequisite/corequisite."""
+    mentions = _prereq_mentions(clause)
     part = clause[: match.start()] if before else clause[match.start():]
-    return _refs(part, titles) or _refs(clause, titles)
+    return (_refs(part, titles) - mentions) or (_refs(clause, titles) - mentions)
 
 
 def _claims(answer: str, titles: dict[str, str]) -> list[tuple[str, str, str]]:

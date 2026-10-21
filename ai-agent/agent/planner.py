@@ -104,6 +104,9 @@ class PlanResult:
     total_valid_options: int = 0
     options_truncated: bool = False
     search_capped: bool = False
+    # Specific sections the student named, checked as one combination by
+    # validate_schedule (None when no sections were named).
+    requested_sections: dict | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -136,7 +139,14 @@ async def plan_schedules(
     course_ids: list[str],
     preferences: Preferences | None = None,
     max_options: int = 5,
+    requested_sections: list[str] | None = None,
 ) -> PlanResult:
+    """requested_sections: section IDs the student named. They are checked as
+    one combination with validate_schedule (time conflicts, capacity,
+    prerequisites, ...), and a section that is not a section of the requested
+    courses in this term is reported as not found. This answers "can I take
+    SEC5001 with SEC5301?" deterministically instead of leaving the model to
+    infer it from which options are missing."""
     prefs = preferences or Preferences()
     requested = list(dict.fromkeys(course_ids))  # de-duplicate, keep order
     result = PlanResult(student_id, term_id, requested)
@@ -183,6 +193,10 @@ async def plan_schedules(
             continue
         candidates[cid] = preferred
 
+    if requested_sections:
+        result.requested_sections = check_requested_sections(
+            student, list(dict.fromkeys(requested_sections)), term_id, all_sections, courses, requested)
+
     if not candidates:
         return result
 
@@ -225,4 +239,38 @@ async def plan_schedules(
     result.options_truncated = len(valid) > max_options
     result.options = valid[:max_options]
     result.rejection_counts = dict(rejections)
+    if result.requested_sections is not None:
+        wanted = set(result.requested_sections["section_ids"])
+        result.requested_sections["in_returned_options"] = any(
+            wanted <= set(o["section_ids"]) for o in result.options)
     return result
+
+
+def check_requested_sections(student, section_ids: list[str], term_id: str,
+                             all_sections: dict[str, Section], courses: dict,
+                             requested: list[str] | None = None) -> dict:
+    """Validate the student's named sections as one combination.
+
+    not_found_reason completes the sentence "<section> ...": a section is
+    looked up only among the sections of the planned courses, so it is either
+    not a section of them this term, or could not be checked at all because
+    no planned course is in the catalog."""
+    found = [sid for sid in section_ids if sid in all_sections]
+    not_found = [sid for sid in section_ids if sid not in all_sections]
+    issues = []
+    if found:
+        check = validate_schedule(student, found, term_id, all_sections, courses)
+        issues = [{"code": i.code, "message": i.message, "section_ids": list(i.section_ids)}
+                  for i in check.issues]
+    return {
+        "section_ids": section_ids,
+        "sections": [_describe(all_sections[sid]) for sid in found],
+        "not_found": not_found,
+        "not_found_reason": None if not not_found else (
+            f"is not a {term_id} section of the planned course(s) {', '.join(sorted(courses))}" if courses
+            else f"could not be checked because {', '.join(requested or []) or 'the planned course'} "
+                 "is not in the course catalog"),
+        "valid_together": bool(found) and not not_found and not issues,
+        "issues": issues,
+        "in_returned_options": False,
+    }

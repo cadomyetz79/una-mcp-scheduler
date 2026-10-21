@@ -240,7 +240,7 @@ def summarize(cases: list[dict], scores: list[dict], records: list[dict], ds=Non
 
 # ---------------------------------------------------------------- scoring v2
 
-ASSERTIONS_VERSION = "2.1"
+ASSERTIONS_VERSION = "2.2"
 SCORING_V2_NOTE = (
     "v2.1 (assertions.py; v2.0 frozen in commit 6429394) = all v1 criteria + structured answer assertions (evaluation/assertions.py): "
     "conflict, availability, ineligible, clarification, sections_ok, recommends_option, "

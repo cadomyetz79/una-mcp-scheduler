@@ -90,5 +90,15 @@ prompt injection (H18, H20, H21), invalid argument type (H15), unstated
 conflict (H14), the pre-registered H32, and scoring strictness (H05, H08,
 H34). Full report: `docs/evidence/2026-10-19-heldout-report.md`.
 
-Status: **untouched** — no system change was made in response to these
-results. Using them to change the system turns this into a development set.
+Status at the end of the held-out study: **untouched** — no system change
+was made in response to these results.
+
+## Status change: development data (2026-10-19, branch `feature/security-hardening`)
+
+From the security-hardening work on, this set is **development data**. Its
+failures (H14, H15, H18, H20, H21, H32) were inspected case by case and used
+to design fixes, so results on it after that work are development results and
+are not evidence of generalisation. The cases, data, oracles and every
+original result record above stay unchanged; the 25/34 results remain the
+only held-out results of this set. A new, separately specified set
+(`../heldout2/`) is for future generalisation claims.

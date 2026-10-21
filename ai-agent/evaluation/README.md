@@ -89,6 +89,30 @@ both runs (`2026-10-19-heldout-report.md`). Use `--dataset heldout`; scoring
 v2 checks are in `assertions.py`; repeated-run consistency in
 `variability.py`.
 
+Since the security-hardening work (2026-10-19) the 34-case held-out set is
+**development data** (its failures were used to design fixes; its original
+results stay unchanged). Datasets now:
+
+| `--dataset` | Cases | Status |
+|---|---|---|
+| `dev` | 19 | development |
+| `heldout` | 34 | development since the security work |
+| `security` | 11 (`security/live_cases.json`) | development: attack variations + legitimate look-alikes |
+| `heldout2` | 37 (`heldout2/`) | pre-registered, for generalisation claims; see its README |
+
+Security-related tools:
+
+- `security/corpus.json`: 32 attack variations and 36 legitimate look-alikes
+  for the input-inspection rules (unit tests, `tests/test_security.py`).
+- `security_replay.py`: applies the new output rules to every recorded live
+  answer (no model) to count answers they would change (false-positive check).
+- `run_eval.py --no-security-check` (ablation) and `--num-predict N` (output
+  cap). Records never keep leaked instruction text.
+
+Security hardening, final code (development data, `2026-10-19-security-report.md`):
+the six held-out failures 6/6, ten held-out controls 10/10, security live
+set 10/11 (scoring v2.2; 9/11 under v2.1). `heldout2` has not been run.
+
 Compare two runs:
 
 ```
@@ -101,8 +125,11 @@ python evaluation/compare.py RUN_A RUN_B --labels baseline check --out compariso
   that the explanation is good. Human review of `answer` text is still needed
   for the paper.
 - The grounding check flags any section ID not in the options, even when the
-  answer only mentions it to say it is unavailable (E13, E14). The cases expect
-  the model to avoid naming such sections.
+  answer only mentions it to say it is unavailable (E13, E14), unless the
+  student named it (then rejecting or asking about it is allowed). The cases
+  expect the model to avoid naming such sections. Since the security work an
+  answer still flagged after its one revision is replaced by an answer built
+  from tool results, so naming an unlisted full section costs a revision.
 - The synthetic data cannot trigger every rule: ALREADY_COMPLETED,
   CREDIT_LIMIT_EXCEEDED and STUDENT_INACTIVE are not reachable through
   `plan_schedule` with the current sections (S10003 is inactive but is first

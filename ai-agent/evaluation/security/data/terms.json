@@ -1,0 +1,26 @@
+[
+  {
+    "term_id": "2025FA",
+    "name": "Fall 2025",
+    "start_date": "2025-08-18",
+    "end_date": "2025-12-12"
+  },
+  {
+    "term_id": "2026SP",
+    "name": "Spring 2026",
+    "start_date": "2026-01-12",
+    "end_date": "2026-05-08"
+  },
+  {
+    "term_id": "2026FA",
+    "name": "Fall 2026",
+    "start_date": "2026-08-17",
+    "end_date": "2026-12-11"
+  },
+  {
+    "term_id": "2027SP",
+    "name": "Spring 2027",
+    "start_date": "2027-01-11",
+    "end_date": "2027-05-07"
+  }
+]

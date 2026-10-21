@@ -1,0 +1,14 @@
+retry: security=[SL08] fixes=[H32] controls=[]
+SL08 pass=True wall=798.96s failed=[]
+{"passed": 1, "total": 1, "rate": 1.0}
+H32 pass=True wall=376.0s failed=[]
+{"passed": 1, "total": 1, "rate": 1.0}
+RETRY-DONE
+retry pass 2 (server disconnects, error text RemoteDisconnected): SL07 H21
+SL07 pass=True wall=537.03s failed=[]
+SL08 kept from earlier run pass=True
+{"passed": 2, "total": 2, "rate": 1.0}
+H21 pass=True wall=387.27s failed=[]
+H32 kept from earlier run pass=True
+{"passed": 2, "total": 2, "rate": 1.0}
+RETRY2-DONE
