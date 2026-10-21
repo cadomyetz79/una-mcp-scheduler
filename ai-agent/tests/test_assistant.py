@@ -52,14 +52,37 @@ async def test_model_plans_and_answers_from_planner_output():
     assert {c["tool"] for c in result.mcp_calls} >= {"get_student_record", "get_course_sections"}
 
 
-async def test_preferences_are_passed_to_planner():
+async def test_required_preferences_are_hard_filters():
     result, _ = await run([
-        {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"], earliest_start="10:00")]},
+        {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"],
+                             earliest_start="10:00", required_preferences=["earliest_start"])]},
         {"content": "CIS376 has no section after 10. CIS410 options: SEC2001 or SEC2002."},
     ])
     plan = result.trace[0].result
     assert plan["excluded"][0]["code"] == "NO_SECTION_MATCHES_PREFERENCES"
     assert result.grounded
+
+
+async def test_wishes_are_soft_by_default_and_reported():
+    # Same request without "required": CIS376 stays in, flagged as missing the wish.
+    result, _ = await run([
+        {"tool_calls": [call("plan_schedule", course_ids=["CIS376", "CIS410"], earliest_start="10:00")]},
+        {"content": "SEC1001 + SEC2002 works but SEC1001 starts 30 minutes before 10:00."},
+    ])
+    plan = result.trace[0].result
+    assert plan["excluded"] == []
+    option = plan["options"][0]
+    assert option["section_ids"] == ["SEC1001", "SEC2002"] and not option["meets_all_preferences"]
+    assert option["preference_violations"][0]["excess_minutes"] == 30
+    assert result.grounded
+
+
+async def test_bad_required_preferences_are_rejected():
+    result, _ = await run([
+        {"tool_calls": [call("plan_schedule", course_ids=["CIS376"], required_preferences=["everything"])]},
+        {"content": "Sorry, I could not plan that."},
+    ])
+    assert not result.trace[0].ok and result.mcp_calls == []
 
 
 async def test_search_then_plan():
