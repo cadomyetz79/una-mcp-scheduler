@@ -5,9 +5,15 @@
 | Owner | Hassan Alnabres (`ehassan256417-afk`) |
 | Date | 2026-10-19 |
 | Code | `ai-agent/` in this repository |
-| Latest code | PR #9, head `d4eacbf` (this document is on branch `docs/workstream3-handoff`, on top of PR #9) |
-| Status | Research prototype. All five open PRs pass CI. **Not production-ready.** |
-| Integration fixes | Branch `fix/integration-readiness` (after this document; no PR yet): defects D1 to D6 and current registrations, see `docs/workstream3-integration-audit.md` |
+| Latest code | Team `main` at `4dd16f1`: PRs #5 to #12 merged on 2026-10-21, PR #14 (strict field types, G1/G2) on 2026-10-22 (this document was written at PR #9, head `d4eacbf`) |
+| Status | Research prototype. **Not production-ready.** Current status, test results and remaining work: `docs/workstream3-completion-summary.md` (2026-10-22) |
+| Integration fixes | PR #11 (defects D1 to D6, current registrations) and PR #12 (quality pass), see `docs/workstream3-integration-audit.md`. Contract for WS1, WS2 and WS4: `docs/workstream3-integration-contract.md` |
+
+> **Status note (2026-10-22).** Sections 1, 3, 4 and 9 below describe the
+> state on 2026-10-19, when PRs #5 to #9 were still open and the test count
+> was 428. All of them are merged now, as is PR #14, and the count is
+> 643 passed, 1 skipped. Section 8 (running `heldout2`) is still valid; its
+> expected count of 428 applies to the pre-registered code `d4eacbf`.
 
 This document is for the team (Workstreams 1, 2 and 4) and for whoever runs
 the second held-out evaluation on the lab GPU. Everything below is backed by
