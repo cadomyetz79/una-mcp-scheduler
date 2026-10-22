@@ -13,6 +13,27 @@ from dataclasses import dataclass, field
 VALID_DAYS = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
 
 
+def parse_bool(value: object, name: str) -> bool:
+    """A JSON boolean only. bool("false") is True, so a lenient reading would
+    treat a student sent as "active": "false" as active. Strings, numbers and
+    null are rejected (fail closed); BannerTools reports a data error."""
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a JSON boolean, got {type(value).__name__}")
+    return value
+
+
+def parse_course_ids(value: object, name: str) -> tuple[str, ...]:
+    """A JSON array of non-empty course ID strings. A string is rejected instead
+    of being split into characters ("CIS376" -> "C", "I", ...); so are null,
+    objects and items that are not non-empty strings. Callers pass [] when the
+    field is missing (no prerequisites or corequisites)."""
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{name} must be an array of course IDs, got {type(value).__name__}")
+    if not all(isinstance(item, str) and item.strip() for item in value):
+        raise ValueError(f"{name} must contain only non-empty course ID strings")
+    return tuple(value)
+
+
 def parse_time(value: str) -> int:
     """Convert "HH:MM" (24-hour) to minutes after midnight."""
     hours, minutes = value.split(":")
@@ -60,8 +81,8 @@ class Course:
             course_id=d["course_id"],
             title=d.get("title", ""),
             credit_hours=int(d["credit_hours"]),
-            prerequisites=tuple(d.get("prerequisites", [])),
-            corequisites=tuple(d.get("corequisites", [])),
+            prerequisites=parse_course_ids(d.get("prerequisites", []), "prerequisites"),
+            corequisites=parse_course_ids(d.get("corequisites", []), "corequisites"),
         )
 
 
@@ -125,7 +146,7 @@ class Student:
             student_id=d["student_id"],
             program=d.get("program", ""),
             max_credit_hours=int(d["max_credit_hours"]),
-            active=bool(d["active"]),
+            active=parse_bool(d["active"], "active"),
             history=tuple(CourseRecord.from_dict(h) for h in (history or [])),
         )
 

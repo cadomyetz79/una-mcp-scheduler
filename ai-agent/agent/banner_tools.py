@@ -42,7 +42,7 @@ from typing import Any, Iterator
 
 from mcp import Client
 
-from scheduling.models import Course, Section, Student
+from scheduling.models import Course, Section, Student, parse_course_ids
 
 # Agent-side name -> MCP tool name on the server.
 # WORKING ASSUMPTION: proposed names. Update the right-hand side to match
@@ -196,8 +196,9 @@ class BannerTools:
                 raise ValueError("course row without course_id")
             return {"course_id": c["course_id"], "title": str(c.get("title") or ""),
                     "credit_hours": c.get("credit_hours"),
-                    "prerequisites": list(c.get("prerequisites") or []),
-                    "corequisites": list(c.get("corequisites") or [])}
+                    # same rule as Course.from_dict: an array of course IDs, or missing
+                    "prerequisites": list(parse_course_ids(c.get("prerequisites", []), "prerequisites")),
+                    "corequisites": list(parse_course_ids(c.get("corequisites", []), "corequisites"))}
 
         return [self._parse(TOOL_NAMES["search"], norm, c) for c in rows]
 
