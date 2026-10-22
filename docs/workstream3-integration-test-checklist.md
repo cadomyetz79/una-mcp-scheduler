@@ -3,9 +3,9 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`), Workstream 3 |
-| Date | 2026-10-22 |
+| Date | 2026-10-22, updated after PR #14 |
 | Contract tested | `docs/workstream3-integration-contract.md` (section numbers below refer to it) |
-| Agent code | `ai-agent/` on team `main` at `cfdaeb7` |
+| Agent code | `ai-agent/` on team `main` at `4dd16f1` (PRs #1 to #12 and #14 merged) |
 
 How to use it:
 
@@ -24,9 +24,10 @@ Commands run from `ai-agent/` unless stated otherwise.
 
 | ID | Check | How | Pass | Result on 2026-10-22 |
 |---|---|---|---|---|
-| B1 | Unit and dataset tests | `python -m pytest -q` (Python 3.12 or 3.13) | 584 passed, 1 skipped (the skip is the opt-in live model test) | PASS on 3.12 and 3.13; CI run 39659181245 on `main`: 4/4 jobs |
-| B2 | Planner over MCP (stdio, fake server) | `python dev/demo_plan.py S10001 2027SP CIS376 CIS410` | One option `SEC1001` + `SEC2002`, `fits_current_registration`, nothing excluded | PASS (7 MCP calls) |
-| B3 | Probe over Streamable HTTP against the fake server | Appendix A, with the fake server on `127.0.0.1` | 11 PASS; C7, C8 and C11 FAIL, because the fake server has no error codes and no authorization | As expected |
+| B1 | Unit and dataset tests | `python -m pytest -q` (Python 3.12 or 3.13) | 643 passed, 1 skipped (the skip is the opt-in live model test) | PASS on 3.12 and 3.13 at `4dd16f1`; CI run 39804086408 on `main`: 4/4 jobs |
+| B2 | Planner over MCP (stdio, fake server) | `python dev/demo_plan.py S10001 2027SP CIS376 CIS410` | One option `SEC1001` + `SEC2002`, `fits_current_registration`, nothing excluded | PASS at `4dd16f1` (7 MCP calls) |
+| B3 | Probe over Streamable HTTP against the fake server | Appendix A, with the fake server on `127.0.0.1` | 13 PASS; C7, C8 and C11 FAIL, because the fake server has no error codes and no authorization | As expected |
+| B4 | Probe against malformed data | Appendix A, with a copy of `data/` where S10001 has `"active": "false"` and CIS410 has `"prerequisites": "CIS376"` | The probe runs to the end and names the problems before parsing: C2 raw (`str`), C3 raw rows (`CIS410: prerequisites`), C4/C5 (`CIS410 raw prerequisites`); the parsing checks and C10 fail with `backend_data_error`; 9 failures in total with C7, C8, C11 | As expected |
 
 ---
 
@@ -41,9 +42,9 @@ Start with the probe in Appendix A, run as `S10001`:
 |---|---|---|---|
 | C0 | Connect over Streamable HTTP with the token | No connection failure | §2 T1–T3 |
 | C1 | Tools listed | The five required tools; `get_student_enrollments` listed (optional) | §3 |
-| C2 | Student record and history | Both parse; `active` is a JSON boolean | §3.1, §3.2 |
-| C3 | Search with empty filters | Returns courses (`query=""`, `subject=""` mean no filter) | §3, §3.4 |
-| C4/C5 | Every course and its sections for `2027SP` | All parse; prerequisites/corequisites are arrays; every section has the requested term | §3.3, §3.5 |
+| C2 | Student record and history | Raw `active` is a JSON boolean (checked before parsing); record and history parse | §3.1, §3.2, §3.7 |
+| C3 | Search with empty filters | Returns courses (`query=""`, `subject=""` mean no filter); raw rows have course ID arrays; rows parse | §3, §3.4, §3.7 |
+| C4/C5 | Every course and its sections for `2027SP` | Raw prerequisites/corequisites are arrays of non-empty strings (checked before parsing); all parse; every section has the requested term | §3.3, §3.5, §3.7 |
 | C6 | A course not offered this term | `[]`, not an error | §4.1 E4 |
 | C7 | Unknown student `S99999` | Tool error **with** `error_code: "NOT_FOUND"` | §4.1 E1, E2 |
 | C8 | Unknown course `ZZZ999` | Tool error **with** `error_code: "NOT_FOUND"` | §4.1 E1, E2 |
@@ -70,7 +71,7 @@ Then these manual checks:
 | ID | Check | How | Pass |
 |---|---|---|---|
 | D1 | Required fields and types for every record | Probe with `STUDENT` set to each test student | No `backend_data_error` |
-| D2 | JSON booleans and arrays | Inspect WS1's JSON for `active`, `prerequisites`, `corequisites`, `meetings[].days` | `true`/`false`, arrays (contract §7 G1, G2) |
+| D2 | JSON booleans and arrays | Inspect WS1's JSON for `active`, `prerequisites`, `corequisites`, `meetings[].days` | `active` is `true`/`false` (not `0`/`1` or a string); the lists are arrays of non-empty strings (not text such as `"CIS236, CIS330"`). Since PR #14 anything else stops the request with a data error (contract §3.7). |
 | D3 | Times | Every `start_time`, `end_time` | 24-hour `"HH:MM"`, end after start |
 | D4 | Terms | Section `term_id` values and the term WS4 passes | Same code (for example `2027SP`) everywhere |
 | D5 | ID formats | Course and section IDs | Course `^[A-Z]{2,4}\d{3}$`, section `^SEC\d+$`; otherwise WS1 gives the real formats and WS3 changes the patterns (G4) **before** end-to-end tests |
@@ -136,7 +137,7 @@ server today, and need an option to connect to WS2's server URL with a token.
 
 | Area | Owner | Date | Commits (WS1 / WS2 / WS3 / WS4) | Result |
 |---|---|---|---|---|
-| §0 Baseline | WS3 | 2026-10-22 | — / — / `cfdaeb7` / — | PASS (B3: the 3 expected failures) |
+| §0 Baseline | WS3 | 2026-10-22 | — / — / `4dd16f1` / — | PASS (B3: the 3 expected failures; B4: the 9 expected failures) |
 | §1 WS2 | WS2 + WS3 | | | |
 | §2 WS1 data | WS1 + WS3 | | | |
 | §3 WS4 | WS4 + WS3 | | | |
@@ -146,12 +147,22 @@ server today, and need an option to connect to WS2's server URL with a token.
 
 ## Appendix A: contract probe
 
-Run on 2026-10-22 from `ai-agent/` against the fake server served over
-Streamable HTTP on `127.0.0.1`: 11 PASS, 3 FAIL (C7, C8, C11, as expected).
-With no server running it prints `FAIL  C0 connect to MCP_URL` and stops.
+Run on 2026-10-22 from `ai-agent/` at `4dd16f1` against the fake server
+served over Streamable HTTP on `127.0.0.1`:
 
-It uses `BannerTools._call`, the agent's own decoding, so it sees results
-exactly as the agent does. Save it as `ai-agent/contract_probe.py` (do not
+- **Mock data:** 13 PASS, 3 FAIL (C7, C8, C11, as expected).
+- **Malformed copy (B4):** 9 FAIL, each naming the field or the error code;
+  the probe still runs to the end.
+- **No server:** `FAIL  C0 connect to MCP_URL`, then it stops.
+
+How it reads results:
+
+- **Raw first.** It reads each result with `BannerTools._call`, the agent's
+  own decoding, and checks the strict fields (`active`, `prerequisites`,
+  `corequisites`, contract §3.7) on that raw result **before** the agent
+  parses it.
+- **Then parsed.** It runs the agent's parsing. A data error during parsing
+  is reported as a FAIL with its code, and the probe continues. Save it as `ai-agent/contract_probe.py` (do not
 commit it). Set the token through the environment, not on the command line,
 so it does not end up in shell history.
 
@@ -159,7 +170,8 @@ so it does not end up in shell history.
 """Workstream 3 contract probe for an MCP server (Streamable HTTP).
 Save as ai-agent/contract_probe.py (do not commit), then from ai-agent/:
     MCP_URL=http://127.0.0.1:8000/mcp MCP_TOKEN=<token of STUDENT> python contract_probe.py
-Prints PASS/FAIL per check; never prints error texts or the token."""
+Raw results are checked before the agent parses them, so a malformed field is
+named. Prints PASS/FAIL per check; never prints values, error texts or the token."""
 import asyncio
 import os
 
@@ -181,6 +193,25 @@ def check(name, ok, detail=""):
     print(f"{'PASS' if ok else 'FAIL'}  {name}  {detail}")
 
 
+def bad_course_id_arrays(row):
+    """Contract §3.7: prerequisites/corequisites, when present, are arrays of non-empty strings."""
+    if not isinstance(row, dict):
+        return ["not an object"]
+    return [k for k in ("prerequisites", "corequisites")
+            if not (isinstance(row.get(k, []), list) and all(isinstance(v, str) and v.strip() for v in row.get(k, [])))]
+
+
+async def parsed(name, coro, detail=lambda value: ""):
+    """The agent's own parsing; a backend error is a FAIL with its code, and the probe goes on."""
+    try:
+        value = await coro
+    except BackendError as e:
+        check(name, False, e.code)
+        return None
+    check(name, True, detail(value))
+    return value
+
+
 async def error_of(client, tool, args):
     """(agent error code, structured error_code) of a call that should fail, or None if it succeeded."""
     reply = await client.call_tool(tool, args)
@@ -199,25 +230,35 @@ async def probe(client):
     check("C1 required tools listed", set(required) <= listed, sorted(set(required) - listed))
     check("C1 optional get_student_enrollments listed", TOOL_NAMES["enrollments"] in listed)
     tools = BannerTools(client)
-    student = await tools.student(STUDENT)
-    raw = await tools._call("student", student_id=STUDENT)  # decoded the way the agent decodes it
-    check("C2 student record and history parse", True, f"{len(student.history)} history rows")
-    check("C2 active is a JSON boolean", isinstance(raw.get("active"), bool))
-    rows = await tools.search_courses("", "")
-    check("C3 search with empty filters returns courses", len(rows) > 0, f"{len(rows)} rows")
-    offered, empty = 0, []
-    for row in rows:
-        course = await tools.course(row["course_id"])
-        raw_c = await tools._call("course", course_id=row["course_id"])
-        if not all(isinstance(raw_c.get(k, []), list) for k in ("prerequisites", "corequisites")):
-            check(f"C4 {course.course_id} prerequisites/corequisites are arrays", False)
-        sections = await tools.sections(course.course_id, TERM)
-        wrong_term = [s.section_id for s in sections if s.term_id != TERM]
-        if wrong_term:
-            check(f"C5 {course.course_id} sections are in {TERM}", False, wrong_term)
+    raw = await tools._call("student", student_id=STUDENT)  # decoded as the agent decodes it, not yet parsed
+    active = raw.get("active") if isinstance(raw, dict) else None
+    check("C2 raw: active is a JSON boolean", isinstance(active, bool), type(active).__name__)
+    await parsed("C2 student record and history parse", tools.student(STUDENT),
+                 lambda s: f"{len(s.history)} history rows")
+    rows = await tools._call("search", query="", subject="")
+    rows = rows if isinstance(rows, list) else []
+    check("C3 raw: search with empty filters returns courses", len(rows) > 0, f"{len(rows)} rows")
+    bad = {str(r.get("course_id") if isinstance(r, dict) else "?"): bad_course_id_arrays(r) for r in rows}
+    bad = {cid: fields for cid, fields in bad.items() if fields}
+    check("C3 raw: search rows have course ID arrays", not bad, bad or "")
+    await parsed("C3 search rows parse", tools.search_courses("", ""))
+    offered, empty, broken = 0, [], []
+    for cid in [r["course_id"] for r in rows if isinstance(r, dict) and isinstance(r.get("course_id"), str)]:
+        try:
+            fields = bad_course_id_arrays(await tools._call("course", course_id=cid))
+            if fields:
+                broken.append(f"{cid} raw {'/'.join(fields)}")
+            await tools.course(cid)
+            sections = await tools.sections(cid, TERM)
+        except BackendError as e:
+            broken.append(f"{cid} {e.code}")
+            continue
+        if any(s.term_id != TERM for s in sections):
+            broken.append(f"{cid} sections outside {TERM}")
         offered += bool(sections)
-        empty += [] if sections else [course.course_id]
-    check("C4/C5 every course and section parses", True, f"{offered} offered, {len(empty)} not offered in {TERM}")
+        empty += [] if sections else [cid]
+    check("C4/C5 every course and its sections are well formed and parse", not broken,
+          broken or f"{offered} offered, {len(empty)} not offered in {TERM}")
     check("C6 a course not offered this term gives [] (not an error)", bool(empty),
           empty[0] if empty else "not covered by this data")
     for name, tool, args in [("C7 unknown student", TOOL_NAMES["student"], {"student_id": UNKNOWN_STUDENT}),
@@ -228,14 +269,19 @@ async def probe(client):
     current = await tools.enrollments(STUDENT, TERM)
     check("C9 current registrations can be listed", current is not None,
           [s.section_id for s in current] if current is not None else "not checked")
-    plan = await plan_schedules(tools, STUDENT, TERM, PLAN_COURSES)
-    check("C10 planner end to end", bool(plan.options),
-          [(o["section_ids"], o.get("registration_fit")) for o in plan.options][:3])
+    try:
+        plan = await plan_schedules(tools, STUDENT, TERM, PLAN_COURSES)
+        check("C10 planner end to end", bool(plan.options),
+              [(o["section_ids"], o.get("registration_fit")) for o in plan.options][:3])
+    except BackendError as e:
+        check("C10 planner end to end", False, e.code)
     try:
         await tools.student(OTHER_STUDENT)
         check("C11 another student's record is refused", False, "returned a record")
     except ToolCallError as e:  # FORBIDDEN (tool_error) or NOT_FOUND (not_found) are both refusals
         check("C11 another student's record is refused", True, f"agent code {e.code}")
+    except BackendError as e:  # answered, but not as a refusal
+        check("C11 another student's record is refused", False, f"agent code {e.code}")
 
 
 async def main():
@@ -266,4 +312,6 @@ import fake_mcp_server
 fake_mcp_server.server.run(transport="streamable-http", host="127.0.0.1", port=8765)
 ```
 
-Then `MCP_URL=http://127.0.0.1:8765/mcp`.
+Then `MCP_URL=http://127.0.0.1:8765/mcp`. For B4, copy `data/` to a scratch
+folder, change the two values, and start the server with `UNA_DATA_DIR` set
+to that folder (the fake server reads it when it starts).

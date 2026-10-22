@@ -3,8 +3,8 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`), Workstream 3 (AI Agent & Scheduling Logic) |
-| Date | 2026-10-22 |
-| Code described | `ai-agent/` on team `main` at `cfdaeb7` (PRs #1 to #12 merged) |
+| Date | 2026-10-22, updated after PR #14 |
+| Code described | `ai-agent/` on team `main` at `4dd16f1` (PRs #1 to #12 and #14 merged) |
 | Status | **Proposal from Workstream 3.** Each item stays a WORKING ASSUMPTION until the owning workstream confirms it. |
 | Related | `docs/workstream3-integration-test-checklist.md` (how to test it), `docs/workstream3-completion-summary.md` (status), `docs/mock-data-model.md` (WS1 data model) |
 
@@ -113,11 +113,11 @@ When each tool is called:
 |---|---|---|---|
 | `student_id` | string | REQUIRED | |
 | `max_credit_hours` | integer | REQUIRED | Credit limit for the term |
-| `active` | **JSON boolean** | REQUIRED | Must be `true`/`false`. A string is not rejected today: `"false"` is read as active (§7, G1). |
+| `active` | **JSON boolean** | REQUIRED | Must be `true` or `false`. Any other value (`"false"`, `"true"`, `0`, `1`, `null`) is a data error (§3.7). |
 | `program` | string | optional | |
 
-Extra fields are ignored. A missing required field gives
-`BackendDataError`.
+Extra fields are ignored. A missing required field, or a value of the wrong
+type (§3.7), gives `BackendDataError`.
 
 ### 3.2 Course history record (`get_course_history`, list items)
 
@@ -134,15 +134,17 @@ Extra fields are ignored. A missing required field gives
 |---|---|---|---|
 | `course_id` | string | REQUIRED | |
 | `credit_hours` | integer | REQUIRED | |
-| `prerequisites` | **JSON array** of course IDs | optional (default `[]`) | AND rule: all must be completed. A string is split into characters today (§7, G2). |
-| `corequisites` | **JSON array** of course IDs | optional (default `[]`) | Satisfied if completed or in the same schedule |
+| `prerequisites` | **JSON array** of non-empty course ID strings | optional (missing means none) | AND rule: all must be completed. Any other type is a data error (§3.7). |
+| `corequisites` | **JSON array** of non-empty course ID strings | optional (missing means none) | Satisfied if completed or in the same schedule. Any other type is a data error (§3.7). |
 | `title` | string | optional | |
 
 ### 3.4 Course search row (`search_courses`, list items)
 
-`course_id` (string) is REQUIRED. `title`, `credit_hours`, `prerequisites`
-and `corequisites` are optional. Filtering by `query` (text in the ID or
-title) and `subject` (for example `CIS`) is done by the server.
+`course_id` (string) is REQUIRED. `title` and `credit_hours` are optional.
+`prerequisites` and `corequisites` are optional; when present they follow
+§3.7, and one malformed row makes the whole search a data error. Filtering
+by `query` (text in the ID or title) and `subject` (for example `CIS`) is
+done by the server.
 
 ### 3.5 Section (`get_course_sections` and `get_student_enrollments`, list items)
 
@@ -174,6 +176,41 @@ Back-to-back meetings (one ends 10:45, the next starts 10:45) do not overlap.
 | List result | `structured_content` as `{"result": [...]}` (the SDK does this for list return types) |
 | No structured content | JSON in the text content |
 | Anything else (HTML, plain text) | `BackendDataError` |
+
+### 3.7 Strict field types (since PR #14)
+
+Two fields are read strictly, so that malformed data stops a request instead
+of changing its result.
+
+| Field | Accepted | Rejected as a data error | When missing |
+|---|---|---|---|
+| `active` (§3.1) | `true`, `false` | Any other value, for example `"false"`, `"true"`, `0`, `1`, `null` | Data error (the field is required) |
+| `prerequisites`, `corequisites` (§3.3, §3.4) | A JSON array of non-empty strings, for example `["CIS376"]` or `[]` | A string (`"CIS376"`, `""`), `null`, an object, or an array with a number, `null`, an empty string or a nested array | No requirements |
+
+What a rejection does:
+
+- **What the student sees.** The agent's code is `backend_data_error`. The
+  model and the student get only the fixed message "The registration system
+  returned data in an unexpected format." Error details name the field's
+  type, never its value.
+- **Fail closed.** No schedule is built for a student whose `active` value
+  cannot be read. A `plan_schedule` call that needs a course with
+  unreadable requirements fails as a whole; the course is not reported as
+  unknown and no option is built. One malformed `search_courses` row fails
+  the whole search.
+- **Already-registered courses.** If the malformed course is one the student
+  is already registered in, the new options are labelled `not_confirmed`,
+  never `fits_current_registration` (checked on 2026-10-22).
+- **Before PR #14.** `"false"` was read as an active student (G1), and a
+  string was split into characters (G2), see §7.
+- **For WS1 and WS2.** A database flag stored as `0`/`1` must be sent as a
+  JSON boolean. Requirements stored as text (for example `"CIS236, CIS330"`)
+  must be sent as an array. Otherwise every request that touches that
+  record stops.
+
+Code: `scheduling/models.py` (`parse_bool`, `parse_course_ids`), used by
+`Student.from_dict`, `Course.from_dict` and `BannerTools.search_courses`.
+Tests: `tests/test_strict_record_fields.py`.
 
 ---
 
@@ -244,7 +281,7 @@ WS2 publishes its list.
 | Failure | Agent error | Fixed message |
 |---|---|---|
 | Connection refused or closed, protocol error, read timeout | `BackendUnavailable` (`backend_unavailable`) | "The registration system is not reachable right now." |
-| Wrong shape: missing field, `"Mon"`, `"9:30 AM"`, not JSON | `BackendDataError` (`backend_data_error`) | "The registration system returned data in an unexpected format." |
+| Wrong shape: missing field, `"Mon"`, `"9:30 AM"`, `"active": "false"`, `"prerequisites": "CIS376"` (§3.7), not JSON | `BackendDataError` (`backend_data_error`) | "The registration system returned data in an unexpected format." |
 
 ---
 
@@ -307,8 +344,8 @@ Requirements for WS4:
 
 | ID | Gap | Owner of the fix |
 |---|---|---|
-| G1 | `active` is read with `bool()`: the string `"false"` counts as active, so an inactive student could get options. JSON booleans (§3.1) avoid it; a strict check in `scheduling/models.py` is a small WS3 fix. | WS3 (small, independent); WS1/WS2 send booleans |
-| G2 | `prerequisites` / `corequisites` given as a string are split into characters. This fails closed (the course is refused with a garbled reason), never open. | WS3 (small, independent); WS1/WS2 send arrays |
+| G1 | **Fixed in PR #14 (merged 2026-10-22).** `active` was read with `bool()`, so the string `"false"` counted as active and an inactive student could get options. Now only a JSON boolean is accepted (§3.7). | Done (WS3). WS1/WS2 must still send JSON booleans, or requests stop with a data error. |
+| G2 | **Fixed in PR #14 (merged 2026-10-22).** `prerequisites` / `corequisites` given as a string were split into characters. Now only an array of non-empty strings is accepted, also in `search_courses` rows (§3.7). | Done (WS3). WS1/WS2 must still send arrays, or requests stop with a data error. |
 | G3 | A clarification answer only works when restated as a limit. Checked on 2026-10-22 with the deterministic reader: "I want CIS376. I can't do mornings. No classes before 10:00 AM." is resolved; the same request followed by "Earliest start: 10:00 AM." is asked about again. | WS4 + team decision (R2), then WS3 |
 | G4 | Mock ID formats are hard-coded: course `^[A-Z]{2,4}\d{3}$`, section `^SEC\d+$` (`agent/assistant.py`, `agent/evidence.py`, `agent/preference_language.py`, `evaluation/assertions.py`). Real CRNs need these changed. | WS1 gives the formats, then WS3 |
 | G5 | Only `NOT_FOUND` has its own handling; other codes are generic (§4.1). | WS2 publishes codes, then WS3 if needed |

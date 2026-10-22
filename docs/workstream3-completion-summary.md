@@ -3,9 +3,9 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`), Workstream 3 (AI Agent & Scheduling Logic) |
-| Date | 2026-10-22 |
-| Code | `ai-agent/` on team `main` at `cfdaeb7` |
-| PRs | #1, #2, #3 and #5 to #12, all merged (2026-10-17 to 2026-10-21) |
+| Date | 2026-10-22, updated after PR #14 |
+| Code | `ai-agent/` on team `main` at `4dd16f1` |
+| PRs | #1, #2, #3, #5 to #12 and #14, all merged (2026-10-17 to 2026-10-22) |
 | Status | **Code complete for Workstream 3's own scope. Not integration-ready:** the WS2 MCP server, the WS1 endpoints and the WS4 identity binding do not exist yet. Research prototype, not production-ready. |
 
 Companion documents:
@@ -36,18 +36,20 @@ Companion documents:
 | Handoff documentation | #10 | `docs/workstream3-handoff.md` |
 | Safe backend and model failures (D1–D3), hard limits from the student's words (D4), per-request isolation (D5–D6), current registrations | #11 | `tests/test_integration_readiness.py` |
 | Registration-fit labels, stricter reading of hard limits, data folder over stdio (R7), per-request model statistics (R9), publication privacy check | #12 | `tests/test_quality_pass.py`, `tests/test_prepublish_check.py` |
+| Strict field types: `active` only as a JSON boolean (G1); `prerequisites` / `corequisites` only as arrays of course IDs, also in search rows (G2); malformed values fail closed | #14 | `tests/test_strict_record_fields.py` (59 tests) |
 
 ---
 
 ## 2. Test evidence
 
-**Automated (2026-10-22, team `main` at `cfdaeb7`).**
+**Automated (2026-10-22, team `main` at `4dd16f1`).**
 
-- `python -m pytest -q` in `ai-agent/`: **584 passed, 1 skipped** on
+- `python -m pytest -q` in `ai-agent/`: **643 passed, 1 skipped** on
   Python 3.13 and on Python 3.12 (Linux). The skipped test is the opt-in live
-  model test.
-- CI on `main`: run 39659181245, **4/4 jobs succeeded** (Ubuntu and Windows,
-  Python 3.12 and 3.13), 584 passed and 1 skipped in each.
+  model test. Before PR #14 the count was 584.
+- CI on `main`: run 39804086408, **4/4 jobs succeeded** (Ubuntu and Windows,
+  Python 3.12 and 3.13), 643 passed and 1 skipped in each. PR #14's own run
+  (39796340703) had the same result.
 - Dataset oracle replays inside pytest (ideal answers through the real checks,
   no model): development 19/19, first held-out set 34/34, security set 11/11,
   `heldout2` 37/37.
@@ -56,8 +58,9 @@ Companion documents:
 
 | Check | Result |
 |---|---|
-| Planner over stdio (`dev/demo_plan.py S10001 2027SP CIS376 CIS410`) | One option, `SEC1001` + `SEC2002`, `fits_current_registration`; 7 MCP calls |
-| Contract probe over Streamable HTTP with a bearer header (fake server on `127.0.0.1`) | 11 PASS. 3 FAIL as expected, because the fake server has no error codes (C7, C8) and no authorization (C11). |
+| Planner over stdio (`dev/demo_plan.py S10001 2027SP CIS376 CIS410`) | One option, `SEC1001` + `SEC2002`, `fits_current_registration`; 7 MCP calls (also at `4dd16f1`) |
+| Contract probe over Streamable HTTP with a bearer header (fake server on `127.0.0.1`, `4dd16f1`) | 13 PASS. 3 FAIL as expected, because the fake server has no error codes (C7, C8) and no authorization (C11). |
+| Contract probe against malformed data (`"active": "false"`, `"prerequisites": "CIS376"`) | Each problem named on the raw result before parsing; the agent's parsing fails with `backend_data_error`; no plan is built (checklist B4) |
 | Structured `error_code` returned by a real SDK `MCPServer` tool | Read correctly; `NOT_FOUND` maps to `not_found` |
 | Text-only error "auth token not found" from `get_student_record` | Reported to the model as "Student record not found." Hence contract §4.1 E2: every error must carry an `error_code`. |
 | `heldout2` integrity | `cases.json` and `data/` identical to the pre-registration commit `0b4030e` |
@@ -69,7 +72,7 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
   academic claims and 0 hard-limit violations. This is the only
   generalisation evidence so far.
 - Later live results are development results.
-- No live run was made on the code of PRs #11 and #12.
+- No live run was made on the code of PRs #11, #12 and #14.
 
 ---
 
@@ -89,8 +92,11 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 - **Prerequisites.** AND rule only, no minimum grades; only `completed`
   counts.
 - **ID formats.** The mock formats are hard-coded (G4).
-- **Lenient parsing.** A string `active` is read as active (G1). A string
-  `prerequisites` is split into characters (G2), which fails closed.
+- **Strict data types (since PR #14).** A non-boolean `active` or
+  non-array `prerequisites` / `corequisites` stops the request with a data
+  error (contract §3.7). Before, `"false"` was read as active (G1) and a
+  string was split into characters (G2). Data that breaks the contract now
+  makes the agent unavailable for that record, not wrong.
 - **Latency.** 3 to 13 minutes per request on a 2-vCPU CPU sandbox; GPU
   latency is not measured.
 - **Evaluation.** Not blind: the rules and most cases were written by the
@@ -114,8 +120,8 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 
 | Owner | Needed | Blocks |
 |---|---|---|
-| WS2 | MCP server with the five tools (contract §3); `error_code` on every error (§4.1); optional `get_student_enrollments`; per-call authorization against the token (§5 I4); transport and auth method | Any end-to-end test |
-| WS1 | Endpoints for courses, course history, sections and enrollments (only `/health` and `/students` exist); real ID formats; JSON booleans and arrays (§3); the data questions in handoff §7 | WS2's server |
+| WS2 | MCP server with the five tools (contract §3), passing JSON types through unchanged (§3.7); `error_code` on every error (§4.1); optional `get_student_enrollments`; per-call authorization against the token (§5 I4); transport and auth method | Any end-to-end test |
+| WS1 | Endpoints for courses, course history, sections and enrollments (only `/health` and `/students` exist); real ID formats; `active` as a JSON boolean (not `0`/`1`) and requirements as arrays of course IDs (§3.7: since PR #14 anything else stops the request); the data questions in handoff §7 | WS2's server |
 | WS4 | `student_id` from the validated Entra token (§5 I1); token on the MCP connection (§5 I5); display rules and connection-failure handling (§6 W1, W5); long-request handling (W3); logging and retention (W2); conversation state (W4) | Any real-user use |
 | Team | Remove or only flag options that conflict with current registrations; partial schedules; conversation history; blind test set and human review | R1, R2, evaluation strength |
 
@@ -127,9 +133,9 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 
 | # | Item | Kind | Notes |
 |---|---|---|---|
-| 1 | Run `heldout2` once on the lab GPU and publish the report | Evaluation (no code) | Handoff §8. Choose the code first. PR #9's `d4eacbf` (428 tests) is the pre-registered, clean run. `main` (584 tests) can also be run; the disclosure in audit §3.4 then applies. |
+| 1 | Run `heldout2` once on the lab GPU and publish the report | Evaluation (no code) | Handoff §8. Choose the code first. PR #9's `d4eacbf` (428 tests) is the pre-registered, clean run. `main` (643 tests since PR #14) can also be run; the disclosure in audit §3.4 then applies. |
 | 2 | Measure latency on the GPU | Measurement (no code) | Needed for contract §6 W3 |
-| 3 | Strict parsing of `active` (JSON boolean) and of `prerequisites` / `corequisites` (arrays) in `scheduling/models.py`, with tests | Small code fix (G1, G2) | Recommended. G1 fails open: an inactive student could get options if a string is sent. Not required if WS1/WS2 follow contract §3. |
+| 3 | Strict parsing of `active` (JSON boolean) and of `prerequisites` / `corequisites` (arrays) in `scheduling/models.py`, with tests | Code fix (G1, G2): **done** | PR #14, merged 2026-10-22 (59 tests). G1 could fail open before; malformed values now fail closed. |
 
 **Workstream 3 code changes at integration time** (small; blocked until the
 other side decides):
@@ -144,8 +150,8 @@ other side decides):
 | 9 | Remove or keep conflicting options; partial schedules (R1) | Team decision |
 
 **Is independent Workstream 3 coding still necessary?** Not for Workstream
-3's own deliverables: the code is merged and tested. Item 3 is a small
-recommended hardening. Items 4 to 9 are coding work that starts once the
+3's own deliverables: the code is merged and tested, and item 3 was done
+in PR #14. Items 4 to 9 are coding work that starts once the
 other workstreams publish their side of the contract. Items 1 and 2 are
 Workstream 3's remaining non-coding work.
 
@@ -156,7 +162,7 @@ Workstream 3's remaining non-coding work.
 - **Start here.** Teams integrating with Workstream 3 should start from the
   contract and run the checklist's probe against their server first.
 - **Changes to the agent.** Agent-side changes go through Workstream 3 and
-  are re-checked with `python -m pytest -q` (expect 584 passed, 1 skipped on
-  `cfdaeb7`) and checklist §0.
+  are re-checked with `python -m pytest -q` (expect 643 passed, 1 skipped on
+  `4dd16f1`) and checklist §0.
 - **Publication rules.** Contributors follow `CLAUDE.md` and run
   `python ai-agent/dev/prepublish_check.py` before pushing or posting.
