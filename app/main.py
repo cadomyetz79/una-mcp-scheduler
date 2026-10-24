@@ -63,3 +63,39 @@ def get_course(course_id: str):
         status_code=404,
         detail="Course not found"
     )
+
+@app.get("/sections")
+def get_sections(
+    course_id: str | None = None,
+    term_id: str | None = None
+):
+    sections = load_json("sections.json")
+
+    if course_id:
+        sections = [
+            section
+            for section in sections
+            if section["course_id"] == course_id
+        ]
+
+    if term_id:
+        sections = [
+            section
+            for section in sections
+            if section["term_id"] == term_id
+        ]
+
+    return sections
+
+@app.get("/sections/{section_id}")
+def get_section(section_id: str):
+    sections = load_json("sections.json")
+
+    for section in sections:
+        if section["section_id"] == section_id:
+            return section
+
+    raise HTTPException(
+        status_code=404,
+        detail="Section not found"
+    )
