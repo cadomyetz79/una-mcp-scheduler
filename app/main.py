@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 
 app = FastAPI(
@@ -32,3 +32,16 @@ def health_check():
 @app.get("/students")
 def get_students():
     return load_json("students.json")
+
+@app.get("/students/{student_id}")
+def get_student(student_id: str):
+    students = load_json("students.json")
+
+    for student in students:
+        if student["student_id"] == student_id:
+            return student
+
+    raise HTTPException(
+        status_code=404,
+        detail="Student not found"
+    )
