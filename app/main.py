@@ -45,3 +45,21 @@ def get_student(student_id: str):
         status_code=404,
         detail="Student not found"
     )
+
+@app.get("/courses")
+def get_courses():
+    return load_json("courses.json")
+
+
+@app.get("/courses/{course_id}")
+def get_course(course_id: str):
+    courses = load_json("courses.json")
+
+    for course in courses:
+        if course["course_id"] == course_id:
+            return course
+
+    raise HTTPException(
+        status_code=404,
+        detail="Course not found"
+    )
