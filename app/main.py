@@ -99,3 +99,51 @@ def get_section(section_id: str):
         status_code=404,
         detail="Section not found"
     )
+
+
+@app.get("/course-history")
+def get_course_history(
+    student_id: str | None = None,
+    status: str | None = None
+):
+    history = load_json("course_history.json")
+
+    if student_id:
+        history = [
+            record
+            for record in history
+            if record["student_id"] == student_id
+        ]
+
+    if status:
+        history = [
+            record
+            for record in history
+            if record["status"] == status
+        ]
+
+    return history
+
+
+@app.get("/students/{student_id}/course-history")
+def get_student_course_history(student_id: str):
+    students = load_json("students.json")
+
+    student_exists = any(
+        student["student_id"] == student_id
+        for student in students
+    )
+
+    if not student_exists:
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found"
+        )
+
+    history = load_json("course_history.json")
+
+    return [
+        record
+        for record in history
+        if record["student_id"] == student_id
+    ]
