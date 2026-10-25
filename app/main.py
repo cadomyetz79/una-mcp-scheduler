@@ -147,3 +147,51 @@ def get_student_course_history(student_id: str):
         for record in history
         if record["student_id"] == student_id
     ]
+
+
+@app.get("/enrollments")
+def get_enrollments(
+    student_id: str | None = None,
+    status: str | None = None
+):
+    enrollments = load_json("enrollments.json")
+
+    if student_id:
+        enrollments = [
+            enrollment
+            for enrollment in enrollments
+            if enrollment["student_id"] == student_id
+        ]
+
+    if status:
+        enrollments = [
+            enrollment
+            for enrollment in enrollments
+            if enrollment["status"] == status
+        ]
+
+    return enrollments
+
+
+@app.get("/students/{student_id}/enrollments")
+def get_student_enrollments(student_id: str):
+    students = load_json("students.json")
+
+    student_exists = any(
+        student["student_id"] == student_id
+        for student in students
+    )
+
+    if not student_exists:
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found"
+        )
+
+    enrollments = load_json("enrollments.json")
+
+    return [
+        enrollment
+        for enrollment in enrollments
+        if enrollment["student_id"] == student_id
+    ]
