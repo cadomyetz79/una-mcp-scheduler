@@ -195,3 +195,22 @@ def get_student_enrollments(student_id: str):
         for enrollment in enrollments
         if enrollment["student_id"] == student_id
     ]
+
+
+@app.get("/terms")
+def get_terms():
+    return load_json("terms.json")
+
+
+@app.get("/terms/{term_id}")
+def get_term(term_id: str):
+    terms = load_json("terms.json")
+
+    for term in terms:
+        if term["term_id"] == term_id:
+            return term
+
+    raise HTTPException(
+        status_code=404,
+        detail="Term not found"
+    )
