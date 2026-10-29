@@ -41,6 +41,14 @@ answer is backed by it. No model is involved.
    the answer must say so about those sections. If it does not, the assistant
    adds a sentence built from the planner result (requested_section_note()).
 
+6. truncated_search(): a search_courses result shows at most
+   MAX_SEARCH_RESULTS courses (assistant.py). When the latest search matched
+   more, no successful plan_schedule came after it, and the answer does not
+   give the number of matches, the assistant adds a sentence saying so and
+   asking for a narrower search (search_limit_note()). Known limit: the number
+   is looked for anywhere in the answer, so the same number used for something
+   else ("21 credit hours" when 21 courses matched) also skips the note.
+
 Limits (WORKING ASSUMPTION): English keyword rules. A rejecting sentence is
 recognised by a negation word; a positive recommendation phrased with a
 negation ("SEC2001 isn't bad") would be treated as a rejection.
@@ -95,6 +103,22 @@ def _get(entry: Any, key: str):
     return entry[key] if isinstance(entry, dict) else getattr(entry, key)
 
 
+def _search_rows(result: Any) -> tuple[list, int]:
+    """(rows shown, total matches) of a search_courses result: the capped dict
+    {"courses", "total_matches", "truncated"} (M1), or the plain list of rows in
+    traces saved before it."""
+    if isinstance(result, dict) and isinstance(result.get("courses"), list):
+        total = result.get("total_matches")
+        return result["courses"], total if isinstance(total, int) else len(result["courses"])
+    if isinstance(result, list):
+        return result, len(result)
+    return [], 0
+
+
+def _searches(trace: list) -> list:
+    return [t for t in trace if _get(t, "tool") == "search_courses" and _get(t, "ok")]
+
+
 def _plans(trace: list) -> list:
     return [t for t in trace if _get(t, "tool") == "plan_schedule" and _get(t, "ok")]
 
@@ -128,10 +152,11 @@ def required_courses(request: str, trace: list, student_id: str) -> dict | None:
         return None
     if ids:
         return {"course_ids": ids, "source": "request"}
-    searches = [t for t in trace if _get(t, "tool") == "search_courses" and _get(t, "ok")]
+    searches = _searches(trace)
     if searches:
-        rows = _get(searches[-1], "result")
-        if isinstance(rows, list) and len(rows) == 1:
+        # one match in the whole catalog, not one row of a capped result
+        rows, total = _search_rows(_get(searches[-1], "result"))
+        if total == 1 and len(rows) == 1:
             return {"course_ids": [rows[0]["course_id"]], "source": "search_courses (single result)"}
     return None
 
@@ -146,12 +171,30 @@ def missing_plan_evidence(need: dict | None, trace: list) -> list[str]:
 def _titles_from_trace(trace: list) -> dict[str, str]:
     """lower-case course title -> course ID, for courses returned by search_courses."""
     out = {}
-    for t in trace:
-        if _get(t, "tool") == "search_courses" and _get(t, "ok") and isinstance(_get(t, "result"), list):
-            for row in _get(t, "result"):
-                if row.get("title"):
-                    out[row["title"].lower()] = row["course_id"]
+    for t in _searches(trace):
+        for row in _search_rows(_get(t, "result"))[0]:
+            if row.get("title"):
+                out[row["title"].lower()] = row["course_id"]
     return out
+
+
+def truncated_search(trace: list) -> dict | None:
+    """The latest successful search, if it showed only part of its matches (M1)
+    and no successful plan_schedule came after it (the answer is then a plan)."""
+    last = max((i for i, t in enumerate(trace) if _searches([t])), default=None)
+    if last is None or _plans(trace[last + 1:]):
+        return None
+    rows, total = _search_rows(_get(trace[last], "result"))
+    return {"shown": len(rows), "total_matches": total} if total > len(rows) else None
+
+
+def search_limit_note(answer: str, cut: dict | None) -> str | None:
+    """A sentence telling the student that more courses matched, unless the
+    answer already gives the number of matches."""
+    if not cut or re.search(rf"\b{cut['total_matches']}\b", answer or ""):
+        return None
+    return (f"(Note: the course search found {cut['total_matches']} matching courses and only "
+            f"{cut['shown']} are shown. Tell me a more specific topic or subject to narrow it down.)")
 
 
 # A course named right after these words is a prerequisite/corequisite being

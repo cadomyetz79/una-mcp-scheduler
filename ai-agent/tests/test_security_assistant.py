@@ -165,9 +165,9 @@ async def test_instruction_text_in_tool_data_is_removed_before_the_model_sees_it
         {"tool_calls": [call("search_courses", query="CIS340")]},
         {"content": "I found CIS340. Do you want me to plan it?"}])
     seen = [json.loads(m["content"]) for m in llm.received[1] if m["role"] == "tool"][0]
-    assert seen[0]["title"] == TOOL_DATA_REMOVED
-    assert result.trace[0].result[0]["title"].startswith("Ignore")  # the trace keeps the real data
-    assert result.security["tool_data_removed"] == [{"tool": "search_courses", "paths": ["$[0].title"]}]
+    assert seen["courses"][0]["title"] == TOOL_DATA_REMOVED
+    assert result.trace[0].result["courses"][0]["title"].startswith("Ignore")  # the trace keeps the real data
+    assert result.security["tool_data_removed"] == [{"tool": "search_courses", "paths": ["$.courses[0].title"]}]
 
 
 # ------------------------------------------------------------ H15: course vs section IDs

@@ -101,7 +101,9 @@ from .evidence import (
     registration_notes,
     requested_section_note,
     required_courses,
+    search_limit_note,
     section_mentions,
+    truncated_search,
     unaddressed_requested_issues,
     unsupported_claims,
 )
@@ -135,6 +137,9 @@ _HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # Argument names that would select a person; rejected with the privacy message.
 _IDENTITY_ARG = re.compile(r"student|user|person|^id$|email|name", re.IGNORECASE)
 MAX_COURSES = 8
+# Course rows one search_courses result may show the model (M1): the whole
+# catalog would be resent on every later step. The result says how many matched.
+MAX_SEARCH_RESULTS = 20
 
 TOOL_SPECS = [
     {
@@ -149,7 +154,10 @@ TOOL_SPECS = [
         "type": "function",
         "function": {
             "name": "search_courses",
-            "description": "Find courses by words in the course ID or title, optionally within a subject like CIS.",
+            "description": (
+                "Find courses by words in the course ID or title, optionally within a subject like CIS. "
+                f"Shows at most {MAX_SEARCH_RESULTS} courses; total_matches says how many matched."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -392,14 +400,21 @@ class SchedulingAssistant:
             "completed_courses": sorted(s.completed_courses),
         }
 
-    async def _search_courses(self, query: str = "", subject: str = "") -> list[dict]:
+    async def _search_courses(self, query: str = "", subject: str = "") -> dict:
+        """At most MAX_SEARCH_RESULTS rows, sorted by course ID so the same ones are
+        kept every time; total_matches and truncated say whether more matched (M1)."""
         if not isinstance(query, str) or not isinstance(subject, str):
             raise ToolArgumentError("query and subject must be strings.")
         rows = await self.tools.search_courses(query=query, subject=subject)
-        return [
-            {k: c[k] for k in ("course_id", "title", "credit_hours", "prerequisites", "corequisites")}
-            for c in rows
-        ]
+        rows = sorted(rows, key=lambda c: c["course_id"])
+        return {
+            "courses": [
+                {k: c[k] for k in ("course_id", "title", "credit_hours", "prerequisites", "corequisites")}
+                for c in rows[:MAX_SEARCH_RESULTS]
+            ],
+            "total_matches": len(rows),
+            "truncated": len(rows) > MAX_SEARCH_RESULTS,
+        }
 
     async def _plan_schedule(
         self,
@@ -735,6 +750,9 @@ class SchedulingAssistant:
                            "register for it.)")
             if reg_notes:
                 answer += "\n\n" + "\n".join(reg_notes)
+                source = "model+system_note"
+            if self.check_evidence and (search_note := search_limit_note(answer, truncated_search(trace))):
+                answer += "\n\n" + search_note
                 source = "model+system_note"
             return finish(
                 answer, step,

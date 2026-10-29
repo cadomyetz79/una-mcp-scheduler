@@ -96,7 +96,7 @@ async def test_search_then_plan():
         {"tool_calls": [call("plan_schedule", course_ids=["CIS410"])]},
         {"content": "Secure Systems (CIS410): SEC2001 or SEC2002."},
     ], request="I want the security course")
-    assert tool_results(llm, 1)[0][0]["course_id"] == "CIS410"
+    assert tool_results(llm, 1)[0]["courses"][0]["course_id"] == "CIS410"
     assert [t.tool for t in result.trace] == ["search_courses", "plan_schedule"]
 
 

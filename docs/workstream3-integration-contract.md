@@ -361,7 +361,7 @@ So that WS4 can describe the data flow:
 |---|---|
 | The student's message | After the security check (`agent/security.py`) |
 | Program, credit limit, active flag, list of completed courses | `get_my_record` |
-| Course rows | `search_courses`: ID, title, credits, prerequisites, corequisites |
+| Course rows | `search_courses`: ID, title, credits, prerequisites, corequisites; at most 20 rows per search (sorted by course ID), with `total_matches` and `truncated` |
 | Planner result | Options, exclusions, issues; current registrations by course and meeting time, with their section IDs removed |
 
 The student ID itself is not in any tool result shown to the model. The
