@@ -279,6 +279,7 @@ INTERNAL_NAMES = {
     "rejection_counts": "rejection counts",
     "combinations_checked": "combinations checked",
     "requested_sections": "requested sections",
+    "total_matches": "number of matches",
 }
 _INTERNAL = re.compile(r"\b(" + "|".join(INTERNAL_NAMES) + r")\b")
 _RAW_JSON = re.compile(r"\{\s*\"[A-Za-z_]+\"\s*:|\"[A-Za-z_]+\"\s*:\s*[\[{]")
