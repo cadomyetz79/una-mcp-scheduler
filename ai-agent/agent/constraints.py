@@ -88,7 +88,7 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-from .preference_language import _COURSE, PREFS, RELAX_CUES, _targets, fragments
+from .preference_language import _COURSE, PREFS, RELAX_CUES, _targets, expand_day_codes, fragments
 
 TIME_PREFS = ("earliest_start", "latest_end")
 WEEK = ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
@@ -324,7 +324,7 @@ class _Parsed:
 class _Extractor:
     def __init__(self, request: str):
         self.ranges: list[tuple] = []
-        text = (request or "").replace("’", "'")
+        text = expand_day_codes((request or "").replace("’", "'"))  # "MWF", "Tu/Th" (preference_language)
         # "a.m."/"p.m." and "5.30pm" would be cut by the sentence splitter
         text = re.sub(r"\b([ap])\.m\.(?=\W|$)", r"\1m", text, flags=re.I)
         text = re.sub(r"(?<![\w.])(\d{1,2})\.([0-5]\d)(?=\s*[ap]m\b)", r"\1:\2", text, flags=re.I)

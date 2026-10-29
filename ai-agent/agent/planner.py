@@ -255,7 +255,7 @@ async def plan_schedules(
         result.requested_sections = check_requested_sections(
             student, list(dict.fromkeys(requested_sections)), term_id, all_sections, courses, requested,
             current if result.current_registrations_checked else None, current_credits,
-            checked=result.current_registrations_checked)
+            checked=result.current_registrations_checked, preferences=prefs)
 
     if not candidates:
         return result
@@ -362,13 +362,43 @@ def _against_current(combo, current: list[Section], courses: dict, current_credi
     }
 
 
+def _required_preference_issues(sections: list[Section], prefs: Preferences | None) -> list[dict]:
+    """One issue per named section and broken REQUIRED preference."""
+    if prefs is None:
+        return []
+    limit = {
+        "earliest_start": f"starts before {prefs.earliest_start}, the earliest time you said you can start",
+        "latest_end": f"ends after {prefs.latest_end}, the time you said you need to be done by",
+    }
+    issues = []
+    for s in sections:
+        seen: set[str] = set()
+        for v in prefs.violations(s):
+            pref = v["preference"]
+            if pref not in prefs.required or pref in seen:
+                continue
+            seen.add(pref)
+            days = [d for d in prefs.avoid_days if any(d in m.days for m in s.meetings)]
+            what = limit.get(pref) or f"meets on {', '.join(days)}, a day you said you need to keep free"
+            issues.append({"code": "REQUIRED_PREFERENCE_VIOLATION", "preference": pref,
+                           "message": f"{s.section_id} ({s.course_id}) {what}.", "section_ids": [s.section_id]})
+    return issues
+
+
 def check_requested_sections(student, section_ids: list[str], term_id: str,
                              all_sections: dict[str, Section], courses: dict,
                              requested: list[str] | None = None,
                              current: list[Section] | None = None,
                              current_credits: int | None = None,
-                             checked: bool | None = None) -> dict:
+                             checked: bool | None = None,
+                             preferences: Preferences | None = None) -> dict:
     """Validate the student's named sections as one combination.
+
+    A named section that breaks a REQUIRED preference is an issue too
+    (REQUIRED_PREFERENCE_VIOLATION), so it is never valid_together: the same
+    mandatory limits that filter the options apply to sections the student
+    names (audit 2026-10-29, H1). Before, "I can't do Mondays. Can I take
+    SEC1001 with SEC2002?" was confirmed although SEC1001 meets on Monday.
 
     not_found_reason completes the sentence "<section> ...": a section is
     looked up only among the sections of the planned courses, so it is either
@@ -381,6 +411,7 @@ def check_requested_sections(student, section_ids: list[str], term_id: str,
         check = validate_schedule(student, found, term_id, all_sections, courses)
         issues = [{"code": i.code, "message": i.message, "section_ids": list(i.section_ids)}
                   for i in check.issues]
+        issues += _required_preference_issues([all_sections[sid] for sid in found], preferences)
     # Fit with current registrations is reported apart from academic validity
     # (valid_together), so a valid combination that needs a registration change
     # is never presented as one the student can simply add.
