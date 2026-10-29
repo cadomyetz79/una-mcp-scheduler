@@ -94,6 +94,42 @@ _LATEST = re.compile(
 # Full weekday names need their own stems: "wed"+"day" never matched "wednesday".
 _DAYS = re.compile(r"\b(mon|tues?|wed(nes)?|thu(rs?)?|fri|sat(ur)?|sun)(day)?s?\b|\bweekends?\b", re.I)
 _COURSE = re.compile(r"\b[A-Z]{2,4}\s?\d{3}\b")
+
+# Registrar day codes ("MWF", "TR", "TTh", "M/W", "Tu/Th"), rewritten to day
+# names before any reading (audit 2026-10-29). Before, no day was found in
+# "I can't do MWF", so unmentioned() dropped the model's correct avoid_days and
+# constraints.py could not apply the limit. A compact code must be written in
+# capitals (M T W R F, Tu/TU, Th/TH, Sa/SA, Su/SU) with at least two days, in
+# week order and without repeats, so "WTF", "SAT" or "Mr" are left alone. In a
+# slash list ("M/W", "tu/th") every item must be a day. A lone "S" or "U" is
+# never read.
+_CODE_DAY = {"m": "Mon", "t": "Tue", "tu": "Tue", "w": "Wed", "r": "Thu", "th": "Thu", "f": "Fri",
+             "sa": "Sat", "su": "Sun"}
+_WEEK_ORDER = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_COMPACT_UNIT = re.compile(r"M|T[uU]|T[hH]|T|W|R|F|S[aA]|S[uU]")
+_COMPACT = re.compile(r"\b(?:M|T[uU]|T[hH]|T|W|R|F|S[aA]|S[uU]){2,7}\b")
+_SLASH_ITEM = r"(?:mon|tues?|wed|thu(?:rs?)?|fri|sat|sun|tu|th|m|t|w|r|f|sa|su)"
+_SLASH_LIST = re.compile(rf"(?<![\w/]){_SLASH_ITEM}(?:\s*/\s*{_SLASH_ITEM})+(?![\w/])", re.I)
+
+
+def _day_name(item: str) -> str:
+    item = item.lower()
+    return _CODE_DAY.get(item) or next(d for d in _WEEK_ORDER if item.startswith(d.lower()))
+
+
+def expand_day_codes(text: str) -> str:
+    """Day codes in text rewritten as "Mon/Wed/Fri"; anything else unchanged."""
+
+    def compact(m: re.Match) -> str:
+        days = [_day_name(u) for u in _COMPACT_UNIT.findall(m.group())]
+        order = [_WEEK_ORDER.index(d) for d in days]
+        return "/".join(days) if order == sorted(set(order)) else m.group()
+
+    def slash(m: re.Match) -> str:
+        days = [_day_name(i.strip()) for i in m.group().split("/")]
+        return "/".join(days) if len(set(days)) == len(days) else m.group()
+
+    return _COMPACT.sub(compact, _SLASH_LIST.sub(slash, text or ""))
 _SENTENCES = re.compile(r"[.!?;\n]+")
 _FRAGMENTS = re.compile(r",|\b(?:and|but|so|while|also)\b", re.I)
 
@@ -151,7 +187,7 @@ def fragments(request: str, linker=None) -> list[dict]:
     out: list[dict] = []
     previous: dict[str, dict] = {}  # target -> last fragment naming it in an earlier sentence
     link = linker or _targets
-    for n, sentence in enumerate(_SENTENCES.split(request or "")):
+    for n, sentence in enumerate(_SENTENCES.split(expand_day_codes(request))):
         frags = [f.strip() for f in _FRAGMENTS.split(sentence) if f and f.strip()]
         info = [{"text": f, "sentence": n, "targets": set(link(f)), **dict(zip(("optional", "mandatory"), _cues(f))),
                  "cue_only": False, "lent_optional": set(), "lent_mandatory": set()} for f in frags]
