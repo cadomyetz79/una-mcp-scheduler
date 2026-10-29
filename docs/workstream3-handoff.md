@@ -3,17 +3,11 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`) |
-| Date | 2026-10-19 |
-| Code | `ai-agent/` in this repository |
-| Latest code | Team `main` at `4dd16f1`: PRs #5 to #12 merged on 2026-10-21, PR #14 (strict field types, G1/G2) on 2026-10-22 (this document was written at PR #9, head `d4eacbf`) |
-| Status | Research prototype. **Not production-ready.** Current status, test results and remaining work: `docs/workstream3-completion-summary.md` (2026-10-22) |
-| Integration fixes | PR #11 (defects D1 to D6, current registrations) and PR #12 (quality pass), see `docs/workstream3-integration-audit.md`. Contract for WS1, WS2 and WS4: `docs/workstream3-integration-contract.md` |
-
-> **Status note (2026-10-22).** Sections 1, 3, 4 and 9 below describe the
-> state on 2026-10-19, when PRs #5 to #9 were still open and the test count
-> was 428. All of them are merged now, as is PR #14, and the count is
-> 643 passed, 1 skipped. Section 8 (running `heldout2`) is still valid; its
-> expected count of 428 applies to the pre-registered code `d4eacbf`.
+| Date | 2026-10-28 |
+| Code | `ai-agent/` at selected main baseline `220e325` |
+| Baseline decision | Pydantic candidate `24e3fe1` deferred; not included |
+| Status | Implemented research prototype; complete verified handoff remains open. See `docs/workstream3-completion-summary.md`. |
+| Integration fixes | PR #11 (defects D1 to D6, current registrations), PR #12 (quality pass) and PR #14 (strict field types) are merged; see `docs/workstream3-integration-audit.md`. Contract for WS1, WS2 and WS4: `docs/workstream3-integration-contract.md` |
 
 This document is for the team (Workstreams 1, 2 and 4) and for whoever runs
 the second held-out evaluation on the lab GPU. Everything below is backed by
@@ -36,13 +30,13 @@ Evidence labels used here:
 | Deterministic validator (`validate_schedule`) | CONFIRMED, merged (PR #1) |
 | MCP client, fake MCP server, deterministic planner | CONFIRMED, merged (PR #2) |
 | LLM assistant with guardrails (Ollama, qwen3:8b) | CONFIRMED, merged (PR #3) |
-| Soft vs mandatory preferences, ranking | CONFIRMED, open (PR #5) |
-| Live evaluation tooling and preference-strength check | CONFIRMED, open (PR #6) |
-| Evidence orchestration and claim grounding | CONFIRMED, open (PR #7) |
-| Held-out evaluation (34 cases, pre-registered) | CONFIRMED, open (PR #8) |
-| Security hardening and second held-out set | CONFIRMED, open (PR #9) |
+| Soft vs mandatory preferences, ranking | CONFIRMED, merged (PR #5) |
+| Live evaluation tooling and preference-strength check | CONFIRMED, merged (PR #6) |
+| Evidence orchestration and claim grounding | CONFIRMED, merged (PR #7) |
+| Held-out evaluation (34 cases, pre-registered) | CONFIRMED, merged (PR #8) |
+| Security hardening and second held-out set | CONFIRMED, merged (PR #9) |
 | Second held-out set (`heldout2`, 37 cases) | Pre-registered, **not run** (kept for the lab GPU) |
-| Integration with the real Mock Banner API (WS1) | OPEN: the needed endpoints do not exist yet |
+| Integration with the real Mock Banner API (WS1) | OPEN: endpoints exist at `220e325`; WS2 mapping and end-to-end integration remain unverified |
 | Integration with the real MCP server (WS2) | OPEN: no WS2 server in the repo yet; the agent uses its own fake server |
 | Entra identity (WS4) | OPEN: the student ID is passed in when the assistant is created |
 
@@ -58,7 +52,7 @@ accepted by `validate_schedule()` are offered.
 |---|---|---|
 | Validator | `scheduling/validators.py`, `models.py`, `loader.py` | Term, duplicates, completed courses, prerequisites (AND rule), corequisites, seats, time conflicts, credit limit, inactive student; machine-readable issue codes |
 | MCP access | `agent/banner_tools.py` | All academic data comes over MCP. Tool names are in one map (`TOOL_NAMES`). Every call is logged. |
-| Fake MCP server | `dev/fake_mcp_server.py` | Serves `data/*.json` (or `UNA_DATA_DIR`) as 5 MCP tools until WS2's server exists |
+| Fake MCP server | `dev/fake_mcp_server.py` | Serves `data/*.json` (or `UNA_DATA_DIR`) as 5 required MCP tools plus optional current registrations until WS2's server exists |
 | Planner | `agent/planner.py` | Course-level checks, then every section combination through `validate_schedule()`. Ranks by missed soft preferences. Reports truncation and search caps. Checks the student's own named sections as one combination (`requested_sections`). |
 | Assistant loop | `agent/assistant.py` | Tool-calling loop with guardrails: bound identity and term, argument allow-list, course-ID vs section-ID schemas, step limit, one forced revision |
 | Preference strength | `agent/preference_language.py` | Reads "must/can't" vs "if possible/rather" per preference. Relaxations make a wish "conflicting", which never overrides the model. Wishes the student never mentioned are not applied. |
@@ -72,7 +66,7 @@ Run it (from `ai-agent/`):
 
 ```bash
 pip install -r requirements.txt          # Python 3.12 or 3.13
-python -m pytest -q                      # expect: 428 passed, 1 skipped (the skip is the live
+python -m pytest -q                      # expect: 643 passed, 1 skipped (the skip is the live
                                          # Ollama test; it runs with RUN_OLLAMA_TESTS=1)
 python dev/demo_plan.py S10001 2027SP CIS376 CIS410          # planner only, no LLM
 python dev/chat.py "I want CIS376 and CIS410, no classes before 10am"   # needs Ollama + qwen3:8b
@@ -80,37 +74,47 @@ python dev/chat.py "I want CIS376 and CIS410, no classes before 10am"   # needs 
 
 ---
 
-## 3. Open PRs and dependency order
+## 3. Merged history and selected baseline
 
-All five PRs come from the fork `ehassan256417-afk/una-mcp-scheduler-hassan`
-into `cadomyetz79/una-mcp-scheduler:main`. They form one linear stack, each
-built on the previous one (verified with `git merge-base`).
+PRs #5 to #9 are merged, as are the handoff (#10), integration fixes
+(#11), quality pass (#12), integration contract (#13) and strict field
+types (#14). The selected baseline is `220e325`;
+Pydantic candidate `24e3fe1` remains deferred.
 
-| Order | PR | Head | Content | CI (4 jobs) |
-|---|---|---|---|---|
-| 1 | #5 | `7a783fa` | Soft preferences and ranking in the planner | success |
-| 2 | #6 | `027abcb` | Live Ollama evaluation (19 cases), preference-strength check | success |
-| 3 | #7 | `a0160b0` | Evidence orchestration and claim grounding (dev set 19/19) | success |
-| 4 | #8 | `e7a3dbe` | Held-out evaluation, 34 cases, pre-registered (25/34 in two runs) | success |
-| 5 | #9 | `d4eacbf` | Security hardening, ID schemas, named-section checks, `heldout2` | success (428 passed, 1 skipped) |
+Historical PR #9 head `d4eacbf` is retained only as the pre-registered
+`heldout2` code reference in §8.
 
-Because every PR targets `main`, each one's diff also contains the PRs below
-it. Merging is the repository owner's decision. Two safe options:
+Historical PR heads and recorded CI (Ubuntu and Windows x Python 3.12/3.13):
 
-- **Option A:** merge #5, #6, #7, #8, #9 in this order with "Create a merge
-  commit" (or "Rebase and merge").
-- **Option B:** merge only #9, which contains everything, and close #5 to #8
-  as included.
-
-**Avoid "Squash and merge" for #5 to #8.** The later PRs still carry the
-original commits, so squashing would cause conflicts or duplicate history.
-None of these PRs touches Workstream 1's `app/` or `docs/mock-data-model.md`.
+| PR | Head | CI (4 jobs) |
+|---|---|---|
+| #5 | `7a783fa` | success |
+| #6 | `027abcb` | success |
+| #7 | `a0160b0` | success |
+| #8 | `e7a3dbe` | success |
+| #9 | `d4eacbf` | success (428 passed, 1 skipped) |
 
 ---
 
 ## 4. Test results
 
-### Automated (CONFIRMED)
+### Completed P1 checkpoint (2026-10-28; not rerun)
+
+At `220e325`: 643 passed, 1 skipped in 13.31s on Python 3.14.4
+(Linux WSL2 aarch64). The stdio demo returned `SEC1001` + `SEC2002`,
+6 credits, `fits_current_registration`, with 7 successful MCP calls.
+The stdio probe returned 13 PASS / 3 expected FAIL; the malformed scratch
+copy returned 7 PASS / 9 expected FAIL. The fake server lacks structured
+error codes and authorization. These results do not verify HTTP, bearer
+authentication, real WS2/WS4 integration or network-outage behavior.
+
+Supported-version evidence carries over by code identity: the `ai-agent/` and
+`.github/` trees are the same object at `4dd16f1` and `220e325`, and the
+`4dd16f1` CI run recorded 643 passed / 1 skipped on all four jobs
+(Ubuntu and Windows x Python 3.12 and 3.13). No CI run pinned to the
+`220e325` SHA is separately recorded. No model/GPU run was made in P1.
+
+### Historical automated results (2026-10-19, PR #9)
 
 - `python -m pytest`: **428 passed, 1 skipped** locally and in CI on all
   four jobs for PR #9. It was 222 passed, 1 skipped at PR #8.
@@ -155,10 +159,11 @@ first held-out set (PR #8). Everything after that is development data until
 ## 5. Known limitations (functional)
 
 - **Single-turn only.** There is no conversation history.
-- **No partial schedules.** If the requested courses cannot all fit, no
-  "best 2 of 3" is offered.
-- **Existing enrollments are not considered** (at PR #9). Fixed on
-  `fix/integration-readiness` when the server has the optional
+- **No best-subset optimization.** Course-level exclusions can leave
+  options for fewer requested courses, with reasons in `excluded`. If the
+  remaining courses cannot fit together, no smaller "best 2 of 3" subset
+  is searched.
+- **Existing enrollments are considered** when the server has the optional
   `get_student_enrollments` tool: conflicting options are flagged and ranked
   last, not removed (OPEN question).
 - **Simple prerequisite rule.** Prerequisites are AND-only, with no minimum
@@ -217,10 +222,27 @@ Remaining risks (details in §6 of the security report):
 
 ## 7. Integration requirements
 
-### Workstream 1: Mock Banner API (`app/`, PR #4 merged)
+### Workstream 1: Mock Banner API (`app/`, selected baseline `220e325`)
 
-`app/main.py` currently serves `/health` and `/students`. The agent (through
-WS2's MCP server) needs, per term `2027SP`:
+`app/main.py` now defines health, student, course, section, course-history,
+enrollment and term routes, including student-specific history/enrollments
+and section lookup by ID. `/sections` filters by course and term; enrollment
+routes return enrollment rows, not the full section records expected by the
+optional MCP tool. WS2 must map/filter/join these shapes and provide search
+semantics. Endpoint existence is not proof of authenticated integration.
+
+- **Course search:** `/courses` returns the complete catalog and accepts no
+  `query` or `subject` filters. WS2 must implement `search_courses(query,
+  subject)` filtering itself; there is no WS1 search endpoint to delegate to.
+- **Enrollments and term:** enrollment rows contain only `student_id`,
+  `section_id` and `status`; neither enrollment route accepts `term_id`.
+  WS2 must join rows to sections, derive and filter by the requested term,
+  and return full section records from
+  `get_student_enrollments(student_id, term_id)`. The planner filters on
+  `s.term_id == term_id`; incomplete mapping can silently yield no current
+  registrations for the term.
+
+The agent needs the following fields, per term `2027SP`:
 
 | Data | Fields the agent reads (`scheduling/models.py`) |
 |---|---|
@@ -229,7 +251,7 @@ WS2's MCP server) needs, per term `2027SP`:
 | Course by ID and course search (text, subject) | `course_id`, `credit_hours`, `prerequisites[]`, `corequisites[]`; `title`, `subject` (for search) |
 | Sections of a course in a term | `section_id`, `course_id`, `term_id`, `capacity`, `enrolled_count`, `meetings[]` with `days` (`MON`..`SUN`), `start_time`, `end_time` ("HH:MM", 24 h); `modality`, `location` (optional) |
 
-Endpoint names are WS1's choice. The shapes above match `data/*.json` and
+WS2 must map the existing WS1 routes to the MCP contract. The shapes above match `data/*.json` and
 `docs/mock-data-model.md`. Questions for WS1 (OPEN):
 
 - Is S10001's CIS330 really `completed` in 2026FA, or `in_progress`?
@@ -251,11 +273,11 @@ The agent's tool contract (WORKING ASSUMPTION; change names only in
 
 - **Errors:** return MCP tool errors (`is_error: true`), not crashes.
   "Student not found" is reported to the student as a missing record.
-  Proposed on `fix/integration-readiness`: a structured `error_code`
+  The agent supports a structured `error_code`
   (`"NOT_FOUND"`) instead of relying on the text, and no internal details
   (hosts, SQL, stack traces) in error texts. The agent shows only fixed
   messages either way.
-- **Optional (proposed on `fix/integration-readiness`):**
+- **Optional (supported by the agent):**
   `get_student_enrollments(student_id, term_id)` returning the sections the
   student is already registered in, as full section records.
 - **Results:** structured content (or JSON text). List results may be
@@ -289,6 +311,9 @@ The agent's tool contract (WORKING ASSUMPTION; change names only in
   instructions, not personal data.
 
 ---
+
+Section 8 preserves the evaluation procedure pinned to the pre-registered
+`d4eacbf` (428 tests). `heldout2` has never been run with a model.
 
 ## 8. Running `heldout2` later (lab GPU)
 
@@ -418,17 +443,17 @@ python evaluation/variability.py --dataset heldout2 \
 
 | # | Item | Owner | Blocks |
 |---|---|---|---|
-| 1 | Review and merge PRs #5 to #9 (order and method in §3) | Repository owner / team | everything below |
+| 1 | Optional: record a CI run pinned to `220e325`. Not a code gap — the `ai-agent/` and `.github/` trees are identical to `4dd16f1`, whose 3.12/3.13 CI is green | WS3 / CI | nothing |
 | 2 | Run `heldout2` once on the lab GPU (§8) and publish the report | Hassan, lab machine | the generalisation claim for the hardened system |
 | 3 | Measure latency on the GPU; CPU numbers are not representative | Hassan | usability claim |
 | 4 | Connect the agent to WS2's real MCP server; rename tools in `TOOL_NAMES` if needed; re-run the tests and one live smoke test | WS2 + Hassan | end-to-end system |
-| 5 | WS1 endpoints for courses, history and sections; answer the three data questions in §7 | WS1 | item 4 |
+| 5 | Confirm mapping of existing WS1 endpoints and resolve the data questions in §7 | WS1 + WS2 | item 4 |
 | 6 | Replace the passed-in `student_id` with the Entra identity; MCP server authorization | WS4 + WS2 + Hassan | any real-user use |
 | 7 | Decide the OPEN design questions: enrollments, partial schedules, `validate_schedule` as an MCP tool, real ID formats | Team | data and contract changes |
 | 8 | A blind test set written by a teammate (especially attacks), and human review of answer quality for the paper | Team | stronger evaluation |
 | 9 | Front end / chat history (multi-turn) and multi-turn security tests, if in scope | Team | multi-turn use |
 
-Items 1 to 3 finish Workstream 3's own deliverables. Items 4 to 6 are
+Items 2 and 3 are remaining WS3 evaluation work. Items 4 to 6 are
 integration work that needs the other workstreams.
 
 ---
@@ -446,7 +471,7 @@ integration work that needs the other workstreams.
 | Raw live records | `docs/evidence/2026-10-19-*/` (one JSON per case, never edited after the run) |
 | Ollama setup notes | `docs/evidence/2026-10-19-ollama-environment-and-first-runs.md` |
 
-## 11. Sensitive-content check
+## 11. Historical sensitive-content check
 
 On 2026-10-19 this document and all 128 files added or modified since PR #8's
 head (`e7a3dbe`) were checked:
