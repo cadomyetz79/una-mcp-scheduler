@@ -8,6 +8,7 @@ results later.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 VALID_DAYS = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
@@ -34,13 +35,33 @@ def parse_course_ids(value: object, name: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def parse_count(value: object, name: str) -> int:
+    """A whole, non-negative JSON number (credit hours, seats). int() would read
+    3.9 as 3, True as 1 and accept "3", so a credit total or a seat count could
+    be quietly wrong. 3.0 is read as 3; booleans, strings, fractions, NaN,
+    infinity and negative numbers are rejected (fail closed)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a whole JSON number, got {type(value).__name__}")
+    if isinstance(value, float):
+        if not value.is_integer():  # also False for NaN and infinity
+            raise ValueError(f"{name} must be a whole number")
+        value = int(value)
+    if value < 0:
+        raise ValueError(f"{name} must not be negative")
+    return value
+
+
+_HHMM = re.compile(r"([01]\d|2[0-3]):([0-5]\d)", re.ASCII)
+
+
 def parse_time(value: str) -> int:
-    """Convert "HH:MM" (24-hour) to minutes after midnight."""
-    hours, minutes = value.split(":")
-    h, m = int(hours), int(minutes)
-    if not (0 <= h <= 23 and 0 <= m <= 59):
+    """Convert "HH:MM" (24-hour, two digits each) to minutes after midnight.
+    "9:5" (09:05 or a cut-off 09:50?), "+9:00", " 9:00" and non-ASCII digits
+    are rejected."""
+    match = _HHMM.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
         raise ValueError(f"invalid time: {value!r}")
-    return h * 60 + m
+    return int(match[1]) * 60 + int(match[2])
 
 
 @dataclass(frozen=True)
@@ -52,7 +73,14 @@ class Meeting:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Meeting":
-        days = tuple(d["days"])
+        days = d["days"]
+        # A meeting with no days would never conflict with anything; a string
+        # or dict would be read as its characters or keys.
+        if not isinstance(days, (list, tuple)) or not days:
+            raise ValueError("meeting days must be a non-empty array of day codes")
+        if not all(isinstance(day, str) for day in days):
+            raise ValueError("meeting days must contain only day code strings")
+        days = tuple(days)
         unknown = set(days) - VALID_DAYS
         if unknown:
             raise ValueError(f"invalid day values: {sorted(unknown)}")
@@ -80,7 +108,7 @@ class Course:
         return cls(
             course_id=d["course_id"],
             title=d.get("title", ""),
-            credit_hours=int(d["credit_hours"]),
+            credit_hours=parse_count(d["credit_hours"], "credit_hours"),
             prerequisites=parse_course_ids(d.get("prerequisites", []), "prerequisites"),
             corequisites=parse_course_ids(d.get("corequisites", []), "corequisites"),
         )
@@ -105,8 +133,8 @@ class Section:
             term_id=d["term_id"],
             section_number=d.get("section_number", ""),
             modality=d.get("modality", ""),
-            capacity=int(d["capacity"]),
-            enrolled_count=int(d["enrolled_count"]),
+            capacity=parse_count(d["capacity"], "capacity"),
+            enrolled_count=parse_count(d["enrolled_count"], "enrolled_count"),
             meetings=tuple(Meeting.from_dict(m) for m in d.get("meetings", [])),
         )
 
@@ -145,7 +173,7 @@ class Student:
         return cls(
             student_id=d["student_id"],
             program=d.get("program", ""),
-            max_credit_hours=int(d["max_credit_hours"]),
+            max_credit_hours=parse_count(d["max_credit_hours"], "max_credit_hours"),
             active=parse_bool(d["active"], "active"),
             history=tuple(CourseRecord.from_dict(h) for h in (history or [])),
         )
