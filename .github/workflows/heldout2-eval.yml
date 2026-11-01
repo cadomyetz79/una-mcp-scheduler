@@ -1,0 +1,738 @@
+# Second held-out set (heldout2): live-model evaluation, started by hand only.
+#
+# Runs the pre-registered protocol (ai-agent/evaluation/heldout2/README.md and
+# docs/workstream3-handoff.md section 8) on a standard GitHub-hosted CPU runner.
+# It checks out the pre-registered code (d4eacbf) into eval/ and only reads
+# the frozen cases, data and scorer. Nothing is committed or pushed.
+#
+# One dispatch = one run (run1, run2), one resume of an interrupted run, one
+# retry of the infrastructure failures of a finished run, or one preflight
+# (everything up to the model check, no heldout2 case is run). Every setting is
+# fixed here, so a resumed run cannot change it.
+#
+# Privacy: public logs show only versions, checksums and one progress line per
+# case. Records and full logs go to an artifact. Artifacts of a public
+# repository are NOT private: any signed-in GitHub user can download them until
+# they expire. Records are kept complete because scoring, resume and rescoring
+# need them.
+#
+# Operating rules (partly enforced below):
+# - dispatch from main only, one at a time (a newer queued dispatch replaces a
+#   pending one); never use "Re-run jobs", dispatch mode=resume instead;
+# - run2 starts only after run1 has completed (enforced);
+# - a fresh run is refused if an artifact of that run already exists (enforced),
+#   so keep the artifacts until both runs are reported.
+
+name: heldout2 live evaluation (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "fresh: new run | resume: continue an interrupted run | infra-retry: retry the infrastructure failures of a complete run | preflight: check the runner, tools and model only"
+        type: choice
+        options: [fresh, resume, infra-retry, preflight]
+        default: preflight
+      run_label:
+        description: "fresh only: which run"
+        type: choice
+        options: [run1, run2]
+        default: run1
+      source_run_id:
+        description: "resume / infra-retry only: ID of the Actions run whose artifact is the source"
+        type: string
+        default: ""
+      source_artifact:
+        description: "resume / infra-retry only: artifact name, e.g. heldout2-d4eacbf-run1"
+        type: string
+        default: ""
+      confirm:
+        description: 'Type RUN HELDOUT2 to start a live model run, or RUN PREFLIGHT for a preflight'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read  # check and download the artifacts of earlier runs of this workflow
+
+concurrency:
+  group: heldout2-live-eval
+  cancel-in-progress: false
+
+env:
+  EVAL_SHA: d4eacbf0bd9626fe2b15a61a18d246ff9dd6e260    # pre-registered code (PR #9 head)
+  FREEZE_SHA: 0b4030ec56ff71e5862ff78c6a8558114616a0ab  # heldout2 pre-registration
+  WORKFLOW_PATH: .github/workflows/heldout2-eval.yml
+  EXPECTED_TESTS: "428 passed, 1 skipped"
+  PYTHON_VERSION: "3.13"                                # earlier live runs: Python 3.13
+  MCP_VERSION: "2.2.0"
+  OLLAMA_VERSION: "0.40.6"
+  OLLAMA_ASSET: ollama-linux-amd64.tar.zst
+  OLLAMA_SHA256: c164ab8b1b28e2a247c29719b8e404c423c5b83ae64c3ab4e59d50c7ff7fc5e0
+  MODEL: qwen3:8b
+  MODEL_BLOB: sha256:a3de86cd1c132c822487ededd47a324c50491393e6565cd14bafa40d0b8e686f
+  MODEL_TEMPLATE: sha256:ae370d884f108d16e7cc8fd5259ebc5773a0afa6e078b11f4ed7e39a27e0dfc4
+  MODEL_PARAMS: sha256:cff3f395ef3756ab63e58b0ad1b32bb6f802905cae1472e6a12034e4246fbbdb
+  MODEL_LICENSE: sha256:d18a5cc71b84bc4af394a31116bd3932b42241de70c77d2b76d69a314ec8aa12
+  # Evaluation settings (heldout2 README run plan; handoff section 8.3). Not inputs.
+  EVAL_ARGS: "--dataset heldout2 --model qwen3:8b --no-think --num-ctx 4096 --timeout 900 --num-predict 768"
+  # Ollama server settings of the earlier runs (handoff section 8.2)
+  OLLAMA_CONTEXT_LENGTH: "4096"
+  OLLAMA_FLASH_ATTENTION: "1"
+  OLLAMA_KV_CACHE_TYPE: q8_0
+  OLLAMA_NUM_PARALLEL: "1"
+  OLLAMA_MAX_LOADED_MODELS: "1"
+  # Minimum resources checked before anything is downloaded
+  MIN_CPUS: "4"
+  MIN_RAM_GIB: "14"
+  MIN_DISK_GIB: "12"
+  JOB_MINUTES: "350"      # must match timeout-minutes below
+  RESERVE_MINUTES: "15"   # kept for writing the status and uploading the artifact
+
+jobs:
+  evaluate:
+    name: heldout2 (${{ inputs.mode }})
+    runs-on: ubuntu-24.04   # standard GitHub-hosted runner; never a larger or GPU runner
+    timeout-minutes: 350
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check inputs and choose the output folder
+        env:
+          MODE: ${{ inputs.mode }}
+          RUN_LABEL: ${{ inputs.run_label }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_ARTIFACT: ${{ inputs.source_artifact }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          echo "JOB_START_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::dispatch this workflow from main only"; exit 1; }
+          [ "$GITHUB_RUN_ATTEMPT" = 1 ] || { echo "::error::do not re-run this job; dispatch mode=resume instead"; exit 1; }
+          short="${EVAL_SHA:0:7}"
+          case "$MODE" in
+            preflight)
+              [ "$CONFIRM" = "RUN PREFLIGHT" ] || { echo "::error::confirm must be exactly: RUN PREFLIGHT"; exit 1; }
+              [ -z "$SOURCE_RUN_ID$SOURCE_ARTIFACT" ] || { echo "::error::preflight takes no source run or artifact"; exit 1; }
+              out_name=preflight
+              echo "UPLOAD_NAME=heldout2-${short}-preflight-${GITHUB_RUN_ID}" >> "$GITHUB_ENV" ;;
+            fresh)
+              [ "$CONFIRM" = "RUN HELDOUT2" ] || { echo "::error::confirm must be exactly: RUN HELDOUT2"; exit 1; }
+              [ -z "$SOURCE_RUN_ID$SOURCE_ARTIFACT" ] || { echo "::error::fresh takes no source run or artifact"; exit 1; }
+              [[ "$RUN_LABEL" =~ ^run[12]$ ]] || { echo "::error::run_label must be run1 or run2"; exit 1; }
+              out_name="$RUN_LABEL" ;;
+            resume|infra-retry)
+              [ "$CONFIRM" = "RUN HELDOUT2" ] || { echo "::error::confirm must be exactly: RUN HELDOUT2"; exit 1; }
+              [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || { echo "::error::source_run_id must be a run ID (digits)"; exit 1; }
+              [[ "$SOURCE_ARTIFACT" =~ ^heldout2-${short}-(run[12](-infra-retry[0-9]*)?)$ ]] \
+                || { echo "::error::source_artifact must look like heldout2-${short}-run1"; exit 1; }
+              source_name="${BASH_REMATCH[1]}"
+              echo "SOURCE_NAME=$source_name" >> "$GITHUB_ENV"
+              if [ "$MODE" = resume ]; then
+                [[ "$source_name" =~ ^run[12]$ ]] || { echo "::error::only run1/run2 can be resumed; repeat an interrupted retry from its source instead"; exit 1; }
+                out_name="$source_name"
+              elif [[ "$source_name" =~ -infra-retry([0-9]*)$ ]]; then
+                n="${BASH_REMATCH[1]:-1}"
+                out_name="${source_name%-infra-retry*}-infra-retry$((n + 1))"
+              else
+                out_name="${source_name}-infra-retry"
+              fi ;;
+            *) echo "::error::unknown mode"; exit 1 ;;
+          esac
+          work="$RUNNER_TEMP/heldout2"
+          mkdir -p "$work/_meta"
+          {
+            echo "OUT_NAME=$out_name"
+            echo "WORK=$work"
+            echo "OUT_DIR=$work/$out_name"
+            echo "META=$work/_meta"
+            echo "ARTIFACT=heldout2-${short}-${out_name}"
+            echo "OLLAMA_MODELS=$RUNNER_TEMP/ollama-models"
+          } >> "$GITHUB_ENV"
+          echo "mode=$MODE output=$out_name artifact=heldout2-${short}-${out_name}"
+
+      - name: Check the runner (CPUs, RAM, disk, tools)
+        run: |
+          set -euo pipefail
+          cpus=$(nproc)
+          ram_gib=$(awk '/^MemTotal:/ {printf "%d", $2 / 1048576}' /proc/meminfo)
+          disk_gib=$(df -BG --output=avail "$RUNNER_TEMP" | tail -1 | tr -dc '0-9')
+          root_gib=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
+          echo "cpus=$cpus ram_gib=$ram_gib disk_free_gib=$disk_gib root_free_gib=$root_gib image=${ImageOS:-?}/${ImageVersion:-?}"
+          [ "$cpus" -ge "$MIN_CPUS" ] || { echo "::error::need >= $MIN_CPUS CPUs (public-repo standard runner)"; exit 1; }
+          [ "$ram_gib" -ge "$MIN_RAM_GIB" ] || { echo "::error::need >= $MIN_RAM_GIB GiB RAM"; exit 1; }
+          [ "$disk_gib" -ge "$MIN_DISK_GIB" ] || { echo "::error::need >= $MIN_DISK_GIB GiB free disk"; exit 1; }
+          for t in curl tar zstd sha256sum timeout python3; do command -v "$t" >/dev/null || { echo "::error::missing $t"; exit 1; }; done
+
+      # Trust check before anything is downloaded. A source must be a finished,
+      # manually dispatched run of this workflow file on main in this repository.
+      # Preflight checks the same API fields on this run.
+      - name: Check the source run and the run order (GitHub API)
+        env:
+          MODE: ${{ inputs.mode }}
+          RUN_LABEL: ${{ inputs.run_label }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_ARTIFACT: ${{ inputs.source_artifact }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF'
+          import json, os, sys, urllib.error, urllib.request
+          e = os.environ
+          api = f"{e['GITHUB_API_URL']}/repos/{e['GITHUB_REPOSITORY']}"
+
+          def get(path):
+              req = urllib.request.Request(api + path, headers={
+                  "Authorization": f"Bearer {e['GH_TOKEN']}", "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28"})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as exc:
+                  sys.exit(f"::error::GitHub API {path.split('?')[0]}: HTTP {exc.code}")
+
+          this = get(f"/actions/runs/{e['GITHUB_RUN_ID']}")
+
+          def problems(run):
+              p = []
+              if run.get("workflow_id") != this["workflow_id"] or (run.get("path") or "").split("@")[0] != e["WORKFLOW_PATH"]:
+                  p.append("not this workflow")
+              if run.get("event") != "workflow_dispatch":
+                  p.append("not a manual dispatch")
+              if run.get("head_branch") != "main":
+                  p.append("not on main")
+              if (run.get("head_repository") or {}).get("full_name") != e["GITHUB_REPOSITORY"]:
+                  p.append("from another repository")
+              if run.get("status") != "completed":
+                  p.append("not completed")
+              return p
+
+          def trusted_uploads(name):
+              """Finished trusted runs that uploaded an artifact with this name (expired ones included)."""
+              runs = []
+              for a in get(f"/actions/artifacts?name={name}&per_page=100")["artifacts"]:
+                  if a.get("name") == name:
+                      run = get(f"/actions/runs/{a['workflow_run']['id']}")
+                      if not problems(run):
+                          runs.append(run)
+              return runs
+
+          short = e["EVAL_SHA"][:7]
+          if e["MODE"] == "preflight":
+              p = [x for x in problems(this) if x != "not completed"]
+              if p:
+                  sys.exit(f"::error::this run would not be accepted as a source: {', '.join(p)}")
+              print(f"API fields ok; trusted runs with a {short} run1 artifact: {len(trusted_uploads(f'heldout2-{short}-run1'))}")
+              sys.exit(0)
+          if e["MODE"] == "fresh":
+              earlier = trusted_uploads(e["ARTIFACT"])
+              if earlier:
+                  sys.exit(f"::error::{e['ARTIFACT']} already exists (run {earlier[0]['id']}); "
+                           "dispatch mode=resume with that run instead of a second fresh run")
+              if e["RUN_LABEL"] == "run2" and not any(r.get("conclusion") == "success"
+                                                      for r in trusted_uploads(f"heldout2-{short}-run1")):
+                  sys.exit("::error::run1 must be complete before run2 starts")
+              print(f"run order ok: no earlier {e['ARTIFACT']}")
+              sys.exit(0)
+
+          run = get(f"/actions/runs/{e['SOURCE_RUN_ID']}")
+          p = problems(run)
+          if run.get("id") == this["id"]:
+              p.append("is this run")
+          if p:
+              sys.exit(f"::error::source run {e['SOURCE_RUN_ID']} is not usable: {', '.join(p)}")
+          if e["MODE"] == "infra-retry" and run.get("conclusion") != "success":
+              sys.exit("::error::the source run did not complete; resume it before retrying infrastructure failures")
+          if e["MODE"] == "resume" and run.get("conclusion") == "success":
+              sys.exit("::error::the source run is already complete; nothing to resume")
+          arts = [a for a in get(f"/actions/runs/{run['id']}/artifacts?name={e['SOURCE_ARTIFACT']}&per_page=100")["artifacts"]
+                  if a.get("name") == e["SOURCE_ARTIFACT"]]
+          if len(arts) != 1 or arts[0].get("expired"):
+              sys.exit(f"::error::source run has no single unexpired artifact {e['SOURCE_ARTIFACT']}")
+          info = {"run_id": run["id"], "run_attempt": run.get("run_attempt"), "head_sha": run.get("head_sha"),
+                  "conclusion": run.get("conclusion"), "created_at": run.get("created_at"),
+                  "artifact": e["SOURCE_ARTIFACT"], "artifact_id": arts[0].get("id"),
+                  "artifact_bytes": arts[0].get("size_in_bytes"), "artifact_digest": arts[0].get("digest")}
+          json.dump(info, open(f"{e['META']}/source-run.json", "w"), indent=2)
+          print(f"source run {run['id']}: workflow commit {str(run.get('head_sha'))[:7]}, conclusion {run.get('conclusion')}, "
+                f"artifact {arts[0].get('size_in_bytes')} bytes")
+          EOF
+
+      - name: Download the source run (resume, infra-retry)
+        if: inputs.mode == 'resume' || inputs.mode == 'infra-retry'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7
+        with:
+          name: ${{ inputs.source_artifact }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/source
+
+      - name: Check out the pre-registered code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          ref: ${{ env.EVAL_SHA }}
+          path: eval
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check frozen heldout2 cases and data
+        working-directory: eval
+        run: |
+          set -euo pipefail
+          [ "$(git rev-parse HEAD)" = "$EVAL_SHA" ] || { echo "::error::checked-out commit is not $EVAL_SHA"; exit 1; }
+          git diff --quiet "$FREEZE_SHA" HEAD -- ai-agent/evaluation/heldout2/cases.json ai-agent/evaluation/heldout2/data \
+            || { echo "::error::heldout2 cases or data differ from the pre-registration commit"; exit 1; }
+          cd ai-agent/evaluation/heldout2
+          sha256sum --check --strict <<'EOF'
+          0806e5b76890c7d75f8fa43bff0157a8e278a511800558844c5ad4d24ff4851d  cases.json
+          b1ee6667b89a82ae387deb52c8a03994cb891a4179a47b94dd867708abddbb11  data/course_history.json
+          1b654e1950c60ad6a7098b643db910fb05f9d5b4ad19de9384b0d4c1654c270a  data/courses.json
+          761fac183e871d24dfb7c9bc645b05cd6d7c196a0c35c02877d8e5cb27231226  data/enrollments.json
+          a3824595f4834e31cb2bb4350b97d44cb81adce6c195e6cbb95255e51de6250c  data/sections.json
+          a126547a3ab66fd1a140a31a0200acb0045753af10ded5174aa7a6edddaef76c  data/students.json
+          bf4281616fb7d2de9b6d27f557e76564f252d8db08f74a6daa74721c286a2521  data/terms.json
+          EOF
+
+      # One checker for source and output records. Source artifacts are
+      # untrusted input: names, sizes, JSON shape, case IDs and settings are
+      # checked, and nothing from them reaches GITHUB_ENV or a command line.
+      - name: Write the record checker
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/records.py" <<'EOF'
+          import hashlib, json, os, re, shutil, sys
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          e = os.environ
+          CASES_DOC = json.load(open(Path(e["GITHUB_WORKSPACE"]) / "eval/ai-agent/evaluation/heldout2/cases.json", encoding="utf-8"))
+          CASES = [c["id"] for c in CASES_DOC["cases"]]
+          assert CASES and all(re.fullmatch(r"N[0-9]{2}", c) for c in CASES), "unexpected case IDs in cases.json"
+          WANT = {"mode": "live", "model": "qwen3:8b", "think": False, "num_ctx": 4096, "llm_timeout_s": 900,
+                  "num_predict": 768, "preference_check": True, "evidence_check": True, "security_check": True,
+                  "unload_between_cases": False, "dataset": "heldout2", "cases_version": CASES_DOC["version"],
+                  "scoring_version": CASES_DOC["scoring_version"]}
+          META = Path(e["META"])
+          MAX_BYTES = 50 * 2**20
+
+
+          def fail(msg):
+              sys.exit(f"::error::{msg}")
+
+
+          def load_json(path):
+              if path.is_symlink() or not path.is_file():
+                  fail(f"{path.name} is missing from the source artifact")
+              try:
+                  doc = json.loads(path.read_bytes().decode("utf-8"))
+              except ValueError:
+                  fail(f"{path.name} in the source artifact is not valid JSON")
+              if not isinstance(doc, dict):
+                  fail(f"{path.name} in the source artifact is not a JSON object")
+              return doc
+
+
+          def record_problem(path):
+              """None for a complete case record, else why it is not one."""
+              if path.is_symlink() or not path.is_file():
+                  return "not a regular file"
+              if path.stat().st_size > MAX_BYTES:
+                  return "larger than 50 MiB"
+              try:
+                  doc = json.loads(path.read_bytes().decode("utf-8"))
+              except ValueError as exc:
+                  return f"not valid JSON ({type(exc).__name__}), e.g. truncated"
+              if not (isinstance(doc, dict) and all(isinstance(doc.get(k), dict) for k in ("meta", "record", "score"))):
+                  return "missing meta, record or score"
+              if doc["record"].get("case_id") != path.stem:
+                  return "case_id does not match the file name"
+              return None
+
+
+          def scan(folder):
+              """Split a run folder into complete records {case_id: path} and other entries {name: reason}."""
+              valid, invalid = {}, {}
+              for p in sorted(folder.iterdir()) if folder.is_dir() else []:
+                  if p.name in ("summary.json", "summary.md") and p.is_file() and not p.is_symlink():
+                      continue  # rebuilt by run_eval
+                  m = re.fullmatch(r"(N[0-9]{2})\.json", p.name)
+                  reason = "unexpected entry" if not m or m.group(1) not in CASES else record_problem(p)
+                  if reason:
+                      invalid[p.name] = reason
+                  else:
+                      valid[p.stem] = p
+              return valid, invalid
+
+
+          def quarantine(folder, invalid):
+              """Keep malformed entries as evidence under _meta/invalid-records; never in the run folder."""
+              if not invalid:
+                  return
+              dest = META / "invalid-records"
+              dest.mkdir(exist_ok=True)
+              log = []
+              for i, (name, reason) in enumerate(sorted(invalid.items()), 1):
+                  p = folder / name
+                  item = {"original_name": name, "reason": reason}
+                  if p.is_file() and not p.is_symlink() and p.stat().st_size <= MAX_BYTES:
+                      data = p.read_bytes()
+                      item.update(sha256=hashlib.sha256(data).hexdigest(), bytes=len(data), kept_as=f"invalid-{i:02d}.bin")
+                      (dest / item["kept_as"]).write_bytes(data)
+                  log.append(item)
+              json.dump({"recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "entries": log},
+                        open(dest / "invalid-records.json", "w"), indent=2)
+
+
+          def read_case_list(path):
+              ids = path.read_text(encoding="utf-8").split() if path.exists() else []
+              if any(i not in CASES for i in ids) or len(set(ids)) != len(ids):
+                  fail("retry list contains an unknown or repeated case ID")
+              return ids
+
+
+          def source():
+              """Check the downloaded source artifact; copy its complete records (resume) or pick retries (infra-retry)."""
+              mode, name = e["MODE"], e["SOURCE_NAME"]
+              src = Path(e["RUNNER_TEMP"]) / "source"
+              links = [p for p in src.rglob("*") if p.is_symlink() or not (p.is_file() or p.is_dir())]
+              if links:
+                  fail("the source artifact contains links or special files")
+              env = load_json(src / "_meta" / "environment.json")
+              want = {"actions_run_id": e["SOURCE_RUN_ID"], "output": name, "eval_commit": e["EVAL_SHA"],
+                      "workflow_ref": "refs/heads/main"}
+              bad = sorted(k for k, v in want.items() if env.get(k) != v)
+              if bad:
+                  fail(f"source environment.json does not belong to run {e['SOURCE_RUN_ID']} / {name}: {bad}")
+              status = load_json(src / "_meta" / "run-status.json")
+              if not isinstance(status.get("complete"), bool) or status.get("output") != name:
+                  fail("source run-status.json is malformed")
+              if mode == "resume" and status["complete"]:
+                  fail("the source run is already complete; nothing to resume")
+              if mode == "infra-retry" and not status["complete"]:
+                  fail("resume the source run to completion before retrying infrastructure failures")
+              folder = src / name
+              valid, invalid = scan(folder)
+              docs = {c: json.loads(p.read_bytes().decode("utf-8")) for c, p in valid.items()}
+              for case_id, doc in docs.items():
+                  bad = sorted(k for k, v in WANT.items() if doc["meta"].get(k) != v)
+                  if bad:
+                      fail(f"{case_id} was run with other settings: {bad}")
+              out = Path(e["OUT_DIR"])
+              lines = [f"source {name}: {len(valid)} complete case records, {len(invalid)} malformed or unexpected entries"]
+              if mode == "resume":
+                  quarantine(folder, invalid)
+                  out.mkdir(parents=True)
+                  for case_id, p in valid.items():
+                      shutil.copyfile(p, out / p.name)
+                      if (out / p.name).read_bytes() != p.read_bytes():
+                          fail(f"copy of {case_id} differs from the source")
+                  if invalid:
+                      lines.append("malformed entries were moved to _meta/invalid-records and their cases will run again")
+                  count = 0
+              else:
+                  if invalid:
+                      fail("the source run has malformed or unexpected records; it cannot be retried")
+                  retry = [c for c, d in docs.items()
+                           if isinstance(d["record"].get("error_kind"), str) and d["record"]["error_kind"].startswith("infrastructure")]
+                  (META / "retry-cases.txt").write_text("".join(f"{c}\n" for c in retry), encoding="utf-8")
+                  read_case_list(META / "retry-cases.txt")
+                  count = len(retry)
+                  lines.append(f"infrastructure failures to retry: {' '.join(retry) or 'none'}")
+              with open(e["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"retry_count={count}\n")
+              print("\n".join(lines))
+
+
+          def status():
+              """Write run-status.json and choose the artifact name."""
+              mode = e["MODE"]
+              out = Path(e["OUT_DIR"])
+              retry_file = META / "retry-cases.txt"
+              valid, invalid = scan(out)
+              expected = read_case_list(retry_file) if mode == "infra-retry" else CASES
+              missing = [c for c in expected if c not in valid]
+              ok_so_far = e.get("JOB_STATUS") == "success"
+              exit_code = e.get("EXIT_CODE") or None
+              nothing_to_retry = mode == "infra-retry" and retry_file.exists() and not expected
+              complete = ok_so_far and not missing and not invalid and (exit_code == "0" or nothing_to_retry)
+              # An artifact keeps the run's name only once the evaluation started; a setup
+              # failure gets another name, so it can neither be resumed nor block a fresh run.
+              claimed = exit_code is not None or (nothing_to_retry and ok_so_far)
+              st = {"finished_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "mode": mode,
+                    "output": e["OUT_NAME"], "run_eval_exit_code": exit_code, "job_status_before": e.get("JOB_STATUS"),
+                    "expected": len(expected), "recorded": len([c for c in expected if c in valid]),
+                    "missing": missing, "invalid_entries": invalid, "complete": complete}
+              json.dump(st, open(META / "run-status.json", "w"), indent=2)
+              if claimed:
+                  with open(e["GITHUB_ENV"], "a") as f:
+                      f.write(f"UPLOAD_NAME={e['ARTIFACT']}\n")
+              line = (f"heldout2 {e['OUT_NAME']}: {st['recorded']}/{st['expected']} cases recorded, "
+                      f"{len(invalid)} malformed, complete={complete}, missing={' '.join(missing) or 'none'}")
+              print(line)
+              with open(e["GITHUB_STEP_SUMMARY"], "a") as f:
+                  f.write(line + "\n")
+
+
+          {"source": source, "status": status}[sys.argv[1]]()
+          EOF
+          python3 -m py_compile "$RUNNER_TEMP/records.py"
+
+      - name: Check the source artifact (untrusted input)
+        id: source
+        if: inputs.mode == 'resume' || inputs.mode == 'infra-retry'
+        env:
+          MODE: ${{ inputs.mode }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          python3 -I "$RUNNER_TEMP/records.py" source
+          cp -R "$RUNNER_TEMP/source/_meta" "$META/source-meta"   # earlier logs, kept as evidence
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install the pre-registered code's requirements
+        working-directory: eval/ai-agent
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          constraints="$RUNNER_TEMP/constraints.txt"
+          echo "mcp==$MCP_VERSION" > "$constraints"
+          source_freeze="$RUNNER_TEMP/source/_meta/pip-freeze.txt"
+          if [ "$MODE" = resume ] || [ "$MODE" = infra-retry ]; then
+            # Same package versions as the source run; only plain name==version lines are accepted.
+            [ -f "$source_freeze" ] || { echo "::error::source has no pip-freeze.txt"; exit 1; }
+            ! grep -vqE '^[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9.+!_-]*$' "$source_freeze" \
+              || { echo "::error::source pip-freeze.txt has lines other than name==version"; exit 1; }
+            cat "$source_freeze" >> "$constraints"
+          fi
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet -r requirements.txt -c "$constraints"
+          python -m pip freeze > "$META/pip-freeze.txt"
+          grep -i '^mcp==' "$META/pip-freeze.txt"
+          if [ "$MODE" = resume ] || [ "$MODE" = infra-retry ]; then
+            diff <(sort "$source_freeze") <(sort "$META/pip-freeze.txt") > /dev/null \
+              || { echo "::error::installed packages differ from the source run"; exit 1; }
+            echo "packages identical to the source run"
+          fi
+
+      - name: Offline tests of the pre-registered code (no model)
+        working-directory: eval/ai-agent
+        run: |
+          set -uo pipefail
+          env -u RUN_OLLAMA_TESTS -u UNA_DATA_DIR python -m pytest -q -p no:cacheprovider > "$META/pytest.log" 2>&1
+          status=$?
+          line=$(tail -n 1 "$META/pytest.log")
+          echo "pytest exit=$status: $line"
+          [ "$status" -eq 0 ] && [[ "$line" == *"$EXPECTED_TESTS"* ]] \
+            || { echo "::error::expected '$EXPECTED_TESTS' (full log in the artifact)"; exit 1; }
+
+      - name: Install Ollama (pinned release, checksum verified)
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/ollama"
+          mkdir -p "$dir" "$OLLAMA_MODELS"
+          base="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/sha256sum.txt" "$base/sha256sum.txt"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$OLLAMA_ASSET" "$base/$OLLAMA_ASSET"
+          got=$(sha256sum "$RUNNER_TEMP/$OLLAMA_ASSET" | cut -d' ' -f1)
+          published=$(awk -v f="$OLLAMA_ASSET" '{n=$2; sub(/^[*.\/]+/, "", n)} n == f {print $1}' "$RUNNER_TEMP/sha256sum.txt")
+          echo "asset sha256=$got published=$published pinned=$OLLAMA_SHA256"
+          [ "$got" = "$OLLAMA_SHA256" ] && [ "$published" = "$OLLAMA_SHA256" ] \
+            || { echo "::error::Ollama asset checksum mismatch"; exit 1; }
+          tar --zstd -xf "$RUNNER_TEMP/$OLLAMA_ASSET" -C "$dir"
+          rm -f "$RUNNER_TEMP/$OLLAMA_ASSET"
+          [ -x "$dir/bin/ollama" ] || { echo "::error::bin/ollama not found in the archive; top level: $(ls "$dir" | tr '\n' ' ')"; exit 1; }
+          echo "$dir/bin" >> "$GITHUB_PATH"
+          echo "disk free after install: $(df -BG --output=avail "$RUNNER_TEMP" | tail -1 | tr -dc '0-9') GiB"
+
+      - name: Start the Ollama server and check its version
+        run: |
+          set -euo pipefail
+          nohup ollama serve > "$META/ollama-server.log" 2>&1 &
+          for _ in $(seq 1 60); do curl -fs http://127.0.0.1:11434/api/version > "$META/ollama-version.json" && break; sleep 2; done
+          [ -s "$META/ollama-version.json" ] || { echo "::error::Ollama server did not start (log in the artifact)"; exit 1; }
+          version=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$META/ollama-version.json")
+          echo "ollama server version=$version"
+          [ "$version" = "$OLLAMA_VERSION" ] || { echo "::error::Ollama server is $version, expected $OLLAMA_VERSION"; exit 1; }
+
+      - name: Pull the model and verify its digests
+        run: |
+          set -euo pipefail
+          ollama pull "$MODEL" > "$META/ollama-pull.log" 2>&1 || { echo "::error::model pull failed (log in the artifact)"; exit 1; }
+          manifest="$OLLAMA_MODELS/manifests/registry.ollama.ai/library/qwen3/8b"
+          cp "$manifest" "$META/model-manifest.json"
+          python3 - "$manifest" <<'EOF'
+          import json, os, sys
+          e = os.environ
+          got = {l["mediaType"].rsplit(".", 1)[-1]: l["digest"] for l in json.load(open(sys.argv[1]))["layers"]}
+          want = {"model": e["MODEL_BLOB"], "template": e["MODEL_TEMPLATE"], "params": e["MODEL_PARAMS"],
+                  "license": e["MODEL_LICENSE"]}
+          print(f"manifest layers={json.dumps(got)}")
+          if got != want:
+              sys.exit("::error::model manifest layers differ from the pinned digests")
+          EOF
+          blob="$OLLAMA_MODELS/blobs/${MODEL_BLOB/:/-}"
+          actual="sha256:$(sha256sum "$blob" | cut -d' ' -f1)"
+          echo "model blob sha256=$actual pinned=$MODEL_BLOB"
+          [ "$actual" = "$MODEL_BLOB" ] || { echo "::error::model blob digest mismatch"; exit 1; }
+          echo "disk free after pull: $(df -BG --output=avail "$RUNNER_TEMP" | tail -1 | tr -dc '0-9') GiB"
+
+      - name: Record the environment
+        env:
+          MODE: ${{ inputs.mode }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_ARTIFACT: ${{ inputs.source_artifact }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF'
+          import json, os, platform, re, shutil
+          from datetime import datetime, timezone
+          e = os.environ
+          cpu = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "?")
+          mem_kib = int(re.search(r"MemTotal:\s+(\d+)", open("/proc/meminfo").read()).group(1))
+          layers = json.load(open(f"{e['META']}/model-manifest.json"))["layers"]
+          env = {
+              "recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+              "mode": e["MODE"], "output": e["OUT_NAME"],
+              "source_run_id": e.get("SOURCE_RUN_ID") or None, "source_artifact": e.get("SOURCE_ARTIFACT") or None,
+              "eval_commit": e["EVAL_SHA"], "freeze_commit": e["FREEZE_SHA"], "workflow_commit": e["WORKFLOW_SHA"],
+              "workflow_ref": e["GITHUB_REF"],
+              "actions_run_id": e["RUN_ID"], "actions_run_attempt": e["RUN_ATTEMPT"],
+              "runner_image": f"{e.get('ImageOS', '?')}/{e.get('ImageVersion', '?')}",
+              "cpu_model": cpu, "cpus": os.cpu_count(), "ram_gib": round(mem_kib / 1048576, 2),
+              "disk_free_gib": round(shutil.disk_usage(e["RUNNER_TEMP"]).free / 2**30, 1),
+              "python": platform.python_version(),
+              "mcp": next(l.split("==")[1].strip() for l in open(f"{e['META']}/pip-freeze.txt") if l.lower().startswith("mcp==")),
+              "ollama_version": json.load(open(f"{e['META']}/ollama-version.json"))["version"],
+              "ollama_asset_sha256": e["OLLAMA_SHA256"],
+              "model": e["MODEL"], "model_layers": {l["mediaType"].rsplit(".", 1)[-1]: l["digest"] for l in layers},
+              "eval_args": e["EVAL_ARGS"],
+              "ollama_server": {k: e[k] for k in ("OLLAMA_CONTEXT_LENGTH", "OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE",
+                                                  "OLLAMA_NUM_PARALLEL", "OLLAMA_MAX_LOADED_MODELS")},
+          }
+          json.dump(env, open(f"{e['META']}/environment.json", "w"), indent=2)
+          print(json.dumps({k: env[k] for k in ("eval_commit", "runner_image", "cpu_model", "cpus", "ram_gib",
+                                                "python", "mcp", "ollama_version", "model_layers")}, indent=2))
+          EOF
+
+      # Loads the model once with an empty prompt (no text is generated, no
+      # heldout2 case is sent) to show that it fits in memory with these settings.
+      - name: Preflight - load the model and check memory and flags
+        if: inputs.mode == 'preflight'
+        working-directory: eval/ai-agent
+        run: |
+          set -euo pipefail
+          help=$(python evaluation/run_eval.py --help)
+          # shellcheck disable=SC2086  # EVAL_ARGS is a fixed list of flags
+          for flag in $EVAL_ARGS --out --resume --cases; do
+            [[ "$flag" != --* ]] || grep -q -- "$flag" <<< "$help" || { echo "::error::run_eval.py has no $flag"; exit 1; }
+          done
+          start=$(date +%s)
+          curl -fsS --max-time 900 http://127.0.0.1:11434/api/generate \
+            -d '{"model": "qwen3:8b", "keep_alive": "5m", "options": {"num_ctx": 4096}}' > "$META/preflight-load.json"
+          echo "model load: $(( $(date +%s) - start ))s"
+          curl -fsS http://127.0.0.1:11434/api/ps > "$META/preflight-ps.json"
+          free -m | tee "$META/preflight-free.txt"
+          python3 - <<'EOF'
+          import json, os
+          e = os.environ
+          models = json.load(open(f"{e['META']}/preflight-ps.json")).get("models", [])
+          loaded = [m for m in models if e["MODEL"] in (m.get("name"), m.get("model"))]
+          if not loaded:
+              raise SystemExit("::error::the model is not loaded after the load request")
+          avail_kib = int(next(l.split()[1] for l in open("/proc/meminfo") if l.startswith("MemAvailable:")))
+          print(f"loaded size={loaded[0].get('size', 0) / 2**30:.2f} GiB, memory still available={avail_kib / 2**20:.2f} GiB")
+          if avail_kib < 2**20:
+              raise SystemExit("::error::less than 1 GiB of memory left with the model loaded")
+          EOF
+          curl -fsS http://127.0.0.1:11434/api/generate -d '{"model": "qwen3:8b", "keep_alive": 0}' > /dev/null
+          echo "preflight passed: runner, packages, tests, Ollama and model are as pinned"
+
+      - name: Check the source run has the same settings
+        if: inputs.mode == 'resume' || inputs.mode == 'infra-retry'
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF'
+          import json, os, sys
+          from pathlib import Path
+          e = os.environ
+          old = json.loads((Path(e["RUNNER_TEMP"]) / "source" / "_meta" / "environment.json").read_bytes().decode("utf-8"))
+          new = json.load(open(Path(e["META"]) / "environment.json"))
+          same = ["eval_commit", "freeze_commit", "mcp", "ollama_version", "ollama_asset_sha256", "model",
+                  "model_layers", "eval_args", "ollama_server"]
+          diff = [k for k in same if old.get(k) != new.get(k)]
+          if str(old.get("python", "")).rsplit(".", 1)[0] != new["python"].rsplit(".", 1)[0]:
+              diff.append("python (minor version)")
+          if diff:
+              sys.exit(f"::error::source run differs in: {', '.join(diff)}")
+          print(f"source {e['SOURCE_NAME']}: environment settings match")
+          EOF
+
+      - name: Run the evaluation
+        id: run
+        if: >-
+          inputs.mode == 'fresh' || inputs.mode == 'resume'
+          || (inputs.mode == 'infra-retry' && steps.source.outputs.retry_count != '0')
+        working-directory: eval/ai-agent
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -uo pipefail
+          now=$(date +%s)
+          budget=$(( JOB_START_EPOCH + (JOB_MINUTES - RESERVE_MINUTES) * 60 - now ))
+          [ "$budget" -ge 1800 ] || { echo "::error::less than 30 minutes left for the run"; exit 1; }
+          extra=()
+          [ "$MODE" = resume ] && extra+=(--resume)
+          if [ "$MODE" = infra-retry ]; then
+            mapfile -t ids < "$META/retry-cases.txt"
+            [ "${#ids[@]}" -gt 0 ] || { echo "::error::empty retry list"; exit 1; }
+            for id in "${ids[@]}"; do
+              [[ "$id" =~ ^N[0-9]{2}$ ]] || { echo "::error::malformed case ID in the retry list"; exit 1; }
+            done
+            extra+=(--cases "${ids[@]}")
+          fi
+          echo "time budget ${budget}s; output $OUT_NAME"
+          # Full output goes to the artifact only. The public log shows the case ID,
+          # whether it was recorded or kept, and its wall time; no answers or scores.
+          # shellcheck disable=SC2086  # EVAL_ARGS is a fixed list of flags
+          env -u RUN_OLLAMA_TESTS -u UNA_DATA_DIR timeout --signal=INT --kill-after=120 "$budget" \
+            python evaluation/run_eval.py $EVAL_ARGS --out "$OUT_DIR" "${extra[@]}" 2>&1 \
+            | tee "$META/run_eval.log" \
+            | sed -u -nE 's/^(N[0-9]+) kept from earlier run.*/\1 kept/p; s/^(N[0-9]+) pass=[^ ]+ wall=([0-9.]+)s.*/\1 recorded wall=\2s/p'
+          status=${PIPESTATUS[0]}
+          echo "run_eval exit=$status (124 = stopped at the time budget, 137 = killed after it)"
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Write the run status
+        if: always() && env.WORK != '' && inputs.mode != 'preflight'
+        env:
+          MODE: ${{ inputs.mode }}
+          EXIT_CODE: ${{ steps.run.outputs.exit_code }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 -I "$RUNNER_TEMP/records.py" status
+
+      - name: Upload records and logs (short retention)
+        if: always() && env.WORK != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
+        with:
+          name: ${{ env.UPLOAD_NAME || format('{0}-setup-failed-{1}', env.ARTIFACT, github.run_id) }}
+          path: ${{ env.WORK }}
+          retention-days: 3
+          if-no-files-found: error
+          include-hidden-files: false
+
+      - name: Fail if the run is incomplete
+        if: always() && env.WORK != '' && inputs.mode != 'preflight'
+        run: |
+          set -euo pipefail
+          python3 -c "import json,os,sys; s=json.load(open(os.environ['META']+'/run-status.json')); sys.exit(0 if s['complete'] else 'run incomplete: dispatch again with mode=resume and this run ID')"
