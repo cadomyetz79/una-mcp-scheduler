@@ -3,11 +3,12 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`) |
-| Date | 2026-10-28 |
-| Code | `ai-agent/` at selected main baseline `220e325` |
+| Date | 2026-11-01 (updated from 2026-10-28) |
+| Code | `ai-agent/` on `main` at `052336f` (the 2026-10-28 checkpoint was `220e325`) |
 | Baseline decision | Pydantic candidate `24e3fe1` deferred; not included |
-| Status | Implemented research prototype; complete verified handoff remains open. See `docs/workstream3-completion-summary.md`. |
+| Status | Implemented research prototype. Offline regression passed on 2026-11-01 (Step 5). `heldout2` live evaluation (Step 6) **DEFERRED** to the lab GPU, not run. Complete verified handoff remains open. See `docs/workstream3-completion-summary.md`. |
 | Integration fixes | PR #11 (defects D1 to D6, current registrations), PR #12 (quality pass) and PR #14 (strict field types) are merged; see `docs/workstream3-integration-audit.md`. Contract for WS1, WS2 and WS4: `docs/workstream3-integration-contract.md` |
+| Fixes since the checkpoint | PR #24 (H1), #25 (M1), #26 (data fixes F1 to F5), #27 (audit F1, F3, F4, F6, F7), #28 (audit F12, F8), #30 (audit F2); WS2 protected MCP server PR #29 |
 
 This document is for the team (Workstreams 1, 2 and 4) and for whoever runs
 the second held-out evaluation on the lab GPU. Everything below is backed by
@@ -35,9 +36,14 @@ Evidence labels used here:
 | Evidence orchestration and claim grounding | CONFIRMED, merged (PR #7) |
 | Held-out evaluation (34 cases, pre-registered) | CONFIRMED, merged (PR #8) |
 | Security hardening and second held-out set | CONFIRMED, merged (PR #9) |
-| Second held-out set (`heldout2`, 37 cases) | Pre-registered, **not run** (kept for the lab GPU) |
-| Integration with the real Mock Banner API (WS1) | OPEN: endpoints exist at `220e325`; WS2 mapping and end-to-end integration remain unverified |
-| Integration with the real MCP server (WS2) | OPEN: no WS2 server in the repo yet; the agent uses its own fake server |
+| Mandatory limits on named sections and day codes (H1) | CONFIRMED, merged (PR #24) |
+| Bounded course search (M1) | CONFIRMED, merged (PR #25) |
+| Strict numeric and meeting data (data fixes F1 to F5) | CONFIRMED, merged (PR #26) |
+| Security audit fixes F1, F3, F4, F6, F7, F12, F8, F2 | CONFIRMED, merged (PRs #27, #28, #30) |
+| Offline regression (Step 5, 2026-11-01, `052336f`) | CONFIRMED: WS3 1036 passed, 1 skipped; root 53 passed (§4) |
+| Second held-out set (`heldout2`, 37 cases) | Pre-registered, **not run**. Step 6 **DEFERRED** to the lab GPU |
+| Integration with the Mock Banner API (WS1) | CONFIRMED offline for synthetic data: WS2's server calls the team FastAPI app in process (PR #29). Real Banner data: OPEN |
+| Integration with the MCP server (WS2) | CONFIRMED offline (PR #29): the agent's `BannerTools`, planner and assistant (scripted model) run against WS2's protected server over Streamable HTTP with a synthetic signed token. Full checklist §1 run and live Entra: OPEN |
 | Entra identity (WS4) | OPEN: the student ID is passed in when the assistant is created |
 
 ---
@@ -52,11 +58,11 @@ accepted by `validate_schedule()` are offered.
 |---|---|---|
 | Validator | `scheduling/validators.py`, `models.py`, `loader.py` | Term, duplicates, completed courses, prerequisites (AND rule), corequisites, seats, time conflicts, credit limit, inactive student; machine-readable issue codes |
 | MCP access | `agent/banner_tools.py` | All academic data comes over MCP. Tool names are in one map (`TOOL_NAMES`). Every call is logged. |
-| Fake MCP server | `dev/fake_mcp_server.py` | Serves `data/*.json` (or `UNA_DATA_DIR`) as 5 required MCP tools plus optional current registrations until WS2's server exists |
+| Fake MCP server | `dev/fake_mcp_server.py` | Serves `data/*.json` (or `UNA_DATA_DIR`) as 5 required MCP tools plus optional current registrations over stdio, for tests and evaluation. WS2's protected server (`src/mcp_server/`, PR #29) is the integration target. |
 | Planner | `agent/planner.py` | Course-level checks, then every section combination through `validate_schedule()`. Ranks by missed soft preferences. Reports truncation and search caps. Checks the student's own named sections as one combination (`requested_sections`). |
 | Assistant loop | `agent/assistant.py` | Tool-calling loop with guardrails: bound identity and term, argument allow-list, course-ID vs section-ID schemas, step limit, one forced revision |
 | Preference strength | `agent/preference_language.py` | Reads "must/can't" vs "if possible/rather" per preference. Relaxations make a wish "conflicting", which never overrides the model. Wishes the student never mentioned are not applied. |
-| Evidence rules | `agent/evidence.py` | Availability and eligibility claims need a `plan_schedule` result. Section IDs must be grounded. "These sections work together" needs planner support. Unstated problems with named sections get a deterministic sentence. A bounded nudge and system-run plan cover missing evidence. |
+| Evidence rules | `agent/evidence.py` | Availability and eligibility claims need a `plan_schedule` result, for every course they name (audit F4). Section IDs must be grounded. "These sections work together" needs planner support. Days, times and credit hours given for a planned section must match the planner result (audit F2). Claims that something was registered or enrolled are unsupported (audit F1). Unstated problems with named sections get a deterministic sentence. A bounded nudge and system-run plan cover missing evidence. |
 | Trust boundaries | `agent/security.py` | Input inspection. Fake tool output and system markers are labelled as student text. Instruction-like text inside MCP data is removed before the model sees it. An output guard stops instruction and data leaks; logs keep only length and hash. |
 | Safe answers | `agent/safe_answer.py` | An answer that leaks internal content gets a fixed refusal. An answer still unverified after the one revision is replaced by an answer built only from tool results. |
 | Evaluation | `evaluation/` | Runner (live or oracle, ablations, retries, resume), scoring v1/v2 (v2.2), oracle validation, variability across runs, replay of rules on recorded answers, comparison reports |
@@ -66,8 +72,8 @@ Run it (from `ai-agent/`):
 
 ```bash
 pip install -r requirements.txt          # Python 3.12 or 3.13
-python -m pytest -q                      # expect: 643 passed, 1 skipped (the skip is the live
-                                         # Ollama test; it runs with RUN_OLLAMA_TESTS=1)
+python -m pytest -q                      # expect: 1036 passed, 1 skipped at 052336f (the skip is
+                                         # the live Ollama test; it runs with RUN_OLLAMA_TESTS=1)
 python dev/demo_plan.py S10001 2027SP CIS376 CIS410          # planner only, no LLM
 python dev/chat.py "I want CIS376 and CIS410, no classes before 10am"   # needs Ollama + qwen3:8b
 ```
@@ -78,8 +84,24 @@ python dev/chat.py "I want CIS376 and CIS410, no classes before 10am"   # needs 
 
 PRs #5 to #9 are merged, as are the handoff (#10), integration fixes
 (#11), quality pass (#12), integration contract (#13) and strict field
-types (#14). The selected baseline is `220e325`;
+types (#14). The 2026-10-28 baseline was `220e325`;
 Pydantic candidate `24e3fe1` remains deferred.
+
+Merged since then (all 2026-10-31 to 2026-11-01):
+
+| PR | Merge | Change |
+|---|---|---|
+| #23 | `cb329fb` | Handoff and P1 verification evidence (docs) |
+| #24 | `43dca6d` | H1: mandatory time/day limits on named sections; day codes |
+| #25 | `5e5d587` | M1: at most 20 search results shown to the model |
+| #26 | `971ba08` | Data fixes F1 to F5: strict counts, meeting days and times |
+| #27 | `f3568d9` | Security audit F1, F3, F4, F6, F7 |
+| #28 | `ab5fee9` | Security audit F12, F8 |
+| #29 | `a572b00` | WS2 protected MCP server, root integration tests, optional live demo script (WS2-owned) |
+| #30 | `052336f` | Security audit F2: section details in answers |
+
+"Data fixes F1 to F5" (PR #26) and the security audit findings ("audit F1"
+to "audit F12", PRs #27, #28, #30) are separate numbering schemes.
 
 Historical PR #9 head `d4eacbf` is retained only as the pre-registered
 `heldout2` code reference in §8.
@@ -98,7 +120,25 @@ Historical PR heads and recorded CI (Ubuntu and Windows x Python 3.12/3.13):
 
 ## 4. Test results
 
-### Completed P1 checkpoint (2026-10-28; not rerun)
+Offline tests (scripted model, synthetic data) check the code. Live-model
+evaluation checks answer quality. They are reported separately below.
+
+### Final offline regression, Step 5 (2026-11-01, `052336f`)
+
+CONFIRMED. Python 3.15.1, pytest 9.2.0, Windows 11; `RUN_OLLAMA_TESTS` and
+`UNA_DATA_DIR` unset. Record: `docs/evidence/2026-11-01-ws3-step5-regression.md`.
+
+- `ai-agent/`: **1036 passed, 1 skipped** (the opt-in live Ollama test).
+  Includes the dataset oracle replays and the 37 `heldout2` oracles
+  (`tests/test_heldout2.py`, 40 tests); no model was run.
+- Repository root `tests/`: **53 passed**. Includes the agent against WS2's
+  protected MCP server over Streamable HTTP with a synthetic signed token
+  (`tests/test_team_mcp_http_integration.py`).
+- `scripts/live_team_mcp_chat.py` compiles; it was not run.
+- Not covered: Python 3.12/3.13 and Linux (the CI matrix); no CI run pinned
+  to `052336f` is recorded here.
+
+### Completed P1 checkpoint (2026-10-28; historical)
 
 At `220e325`: 643 passed, 1 skipped in 13.31s on Python 3.14.4
 (Linux WSL2 aarch64). The stdio demo returned `SEC1001` + `SEC2002`,
@@ -154,6 +194,13 @@ The only results that count as generalisation evidence are the 25/34 of the
 first held-out set (PR #8). Everything after that is development data until
 `heldout2` is run.
 
+No WS3 live evaluation is recorded for PRs #11 to #30. The `heldout2` run
+(Step 6) is **DEFERRED** to the lab GPU (§8). WS2 reports single
+exploratory local demos on 2026-10-31 (`qwen3:4b-instruct` and
+`una-scheduler:latest` through the protected MCP server,
+`docs/workstream2-mcp-integration.md`); those are WS2's observations, not a
+WS3 evaluation, and they were not rerun here.
+
 ---
 
 ## 5. Known limitations (functional)
@@ -183,6 +230,17 @@ first held-out set (PR #8). Everything after that is development data until
   server after long answers. Latency must be measured on the lab GPU.
 - **Model errors remain.** The model still invents arguments (e.g. 08:00 to
   17:00); code removes them, but such cases fail strict scoring.
+- **Fail-closed data checks.** Since PRs #14, #26 and #27, malformed
+  `active`, requirement lists, counts, meeting days or times, or a record
+  with another student's `student_id`, stop the request with a fixed data
+  error message.
+- **Limits.** Messages over 4000 characters get a fixed answer (PR #27).
+  The model sees at most 20 search results (PR #25).
+- **Section-detail check (PR #30)** covers days, times and credit hours;
+  locations, seats and modality in an answer are not checked.
+- **WS2 error codes.** Only `NOT_FOUND` has its own handling. `FORBIDDEN`,
+  `INVALID_ARGUMENT`, `BACKEND_DATA` and `UNAVAILABLE` from the protected
+  server become the generic `tool_error` (contract §4.1, G5).
 - **Not fully blind evaluation.** The rules and most test cases were written
   by the same developer.
 
@@ -202,6 +260,22 @@ Enforced in application code (not prompt-only):
   only its length and hash.
 - An unverified answer is replaced by an answer built from tool results.
 - Instruction-like text in MCP data is removed before the model sees it.
+- Added by the WS3 security audit of 2026-10-29 (PRs #27, #28, #30):
+  - audit F1: an answer claiming a registration, enrolment or reservation is
+    unsupported (one revision, then the fallback answer);
+  - audit F3: another student's ID in the request no longer turns the
+    evidence check off;
+  - audit F4: a positive availability claim needs every course it names in
+    a `plan_schedule` option;
+  - audit F6: a record, history row or enrolment row with another
+    `student_id` is a backend data error;
+  - audit F7: messages over 4000 characters get a fixed answer; the
+    constraint reader no longer takes quadratic time;
+  - audit F12: `plan_schedule` times are checked with the planner's parser,
+    so a bad value is an argument error, not a system error;
+  - audit F8: the constraint parse cache is freed with each request;
+  - audit F2: days, times and credit hours an answer gives for a planned
+    section must match the planner result.
 
 Remaining risks (details in §6 of the security report):
 
@@ -230,6 +304,11 @@ and section lookup by ID. `/sections` filters by course and term; enrollment
 routes return enrollment rows, not the full section records expected by the
 optional MCP tool. WS2 must map/filter/join these shapes and provide search
 semantics. Endpoint existence is not proof of authenticated integration.
+
+Since PR #29, WS2's adapter (`src/mcp_server/team_backend_client.py`) does
+this mapping for the synthetic data, calling the team FastAPI app in
+process; the root tests cover it. The points below remain the requirements
+for any real data source.
 
 - **Course search:** `/courses` returns the complete catalog and accepts no
   `query` or `subject` filters. WS2 must implement `search_courses(query,
@@ -260,7 +339,18 @@ WS2 must map the existing WS1 routes to the MCP contract. The shapes above match
 
 ### Workstream 2: MCP server
 
-The agent's tool contract (WORKING ASSUMPTION; change names only in
+CONFIRMED offline since PR #29 (`src/mcp_server/team_protected_server.py`,
+`docs/workstream2-mcp-integration.md`): the protected server exposes the five
+tools below plus `get_student_enrollments`, with the same names and
+arguments as `agent/banner_tools.py: TOOL_NAMES`. It serves Streamable HTTP on
+`127.0.0.1:8002/mcp`, rejects requests without a valid bearer token (HTTP
+401), refuses another student's records with `error_code: "FORBIDDEN"`
+before any backend call, and returns structured error codes `FORBIDDEN`,
+`NOT_FOUND`, `INVALID_ARGUMENT`, `BACKEND_DATA` and `UNAVAILABLE`. Tested
+with a synthetic signed token and synthetic identity mapping only; no live
+Entra login.
+
+The agent's tool contract (names change only in
 `agent/banner_tools.py: TOOL_NAMES`):
 
 | MCP tool | Arguments | Returns |
@@ -276,18 +366,21 @@ The agent's tool contract (WORKING ASSUMPTION; change names only in
   The agent supports a structured `error_code`
   (`"NOT_FOUND"`) instead of relying on the text, and no internal details
   (hosts, SQL, stack traces) in error texts. The agent shows only fixed
-  messages either way.
+  messages either way. Codes other than `NOT_FOUND` currently become the
+  generic `tool_error` (G5, contract §4.1).
 - **Optional (supported by the agent):**
   `get_student_enrollments(student_id, term_id)` returning the sections the
   student is already registered in, as full section records.
 - **Results:** structured content (or JSON text). List results may be
   wrapped as `{"result": [...]}`.
 - **Transport:** the agent uses `mcp.Client` (MCP Python SDK `>=2.2,<3`),
-  over stdio today (`dev/chat.py`, `evaluation/run_eval.py`). A streamable
-  HTTP server works by passing its transport to `Client`.
+  over stdio in `dev/chat.py` and `evaluation/run_eval.py`. Against the
+  protected server it uses Streamable HTTP with a bearer header (root
+  tests; WS2's `scripts/live_team_mcp_chat.py`).
 - **Authorization:** the server must enforce that a session only reads the
   authenticated student's records (WS4 token). Do not rely on the agent
-  alone.
+  alone. The protected server does this (PR #29); it is tested with a
+  synthetic token only.
 - **Optional:** a `get_section(section_id)` tool would let named sections be
   checked without their course. Keep the server read-only; the agent never
   enrolls anyone.
@@ -314,6 +407,12 @@ The agent's tool contract (WORKING ASSUMPTION; change names only in
 
 Section 8 preserves the evaluation procedure pinned to the pre-registered
 `d4eacbf` (428 tests). `heldout2` has never been run with a model.
+
+**Status on 2026-11-01: Step 6 (this run) is DEFERRED to the lab GPU.** The
+procedure below is unchanged. Current `main` (`052336f`) has 1036 offline
+tests and includes PRs #11 to #30; running `heldout2` on it instead of
+`d4eacbf` needs an explicit evaluation-code decision first, with the
+disclosure in `docs/workstream3-integration-audit.md` §3.4.
 
 ## 8. Running `heldout2` later (lab GPU)
 
@@ -443,12 +542,12 @@ python evaluation/variability.py --dataset heldout2 \
 
 | # | Item | Owner | Blocks |
 |---|---|---|---|
-| 1 | Optional: record a CI run pinned to `220e325`. Not a code gap — the `ai-agent/` and `.github/` trees are identical to `4dd16f1`, whose 3.12/3.13 CI is green | WS3 / CI | nothing |
-| 2 | Run `heldout2` once on the lab GPU (§8) and publish the report | Hassan, lab machine | the generalisation claim for the hardened system |
+| 1 | Optional: record a CI run pinned to `052336f` (Python 3.12/3.13, Ubuntu and Windows); Step 5 ran on Python 3.15.1, Windows only | WS3 / CI | nothing |
+| 2 | **Step 6, DEFERRED:** run `heldout2` once on the lab GPU (§8) and publish the report | Hassan, lab machine | the generalisation claim for the hardened system |
 | 3 | Measure latency on the GPU; CPU numbers are not representative | Hassan | usability claim |
-| 4 | Connect the agent to WS2's real MCP server; rename tools in `TOOL_NAMES` if needed; re-run the tests and one live smoke test | WS2 + Hassan | end-to-end system |
+| 4 | Connect the agent to WS2's MCP server. **Done offline in PR #29** (names match, root tests pass). Remaining: run the full checklist §1 and Appendix A probe against the protected server; add a server URL/token option to `evaluation/run_eval.py`; map WS2's other error codes (G5) | WS2 + Hassan | real end-to-end evaluation |
 | 5 | Confirm mapping of existing WS1 endpoints and resolve the data questions in §7 | WS1 + WS2 | item 4 |
-| 6 | Replace the passed-in `student_id` with the Entra identity; MCP server authorization | WS4 + WS2 + Hassan | any real-user use |
+| 6 | Replace the passed-in `student_id` with the Entra identity. MCP server authorization exists (PR #29, synthetic token); a live Entra login is not demonstrated | WS4 + WS2 + Hassan | any real-user use |
 | 7 | Decide the OPEN design questions: enrollments, partial schedules, `validate_schedule` as an MCP tool, real ID formats | Team | data and contract changes |
 | 8 | A blind test set written by a teammate (especially attacks), and human review of answer quality for the paper | Team | stronger evaluation |
 | 9 | Front end / chat history (multi-turn) and multi-turn security tests, if in scope | Team | multi-turn use |

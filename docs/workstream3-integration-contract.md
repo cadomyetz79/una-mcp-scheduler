@@ -3,9 +3,9 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`), Workstream 3 (AI Agent & Scheduling Logic) |
-| Date | 2026-10-22, updated after PR #14 |
-| Code described | `ai-agent/` on team `main` at `4dd16f1` (PRs #1 to #12 and #14 merged) |
-| Status | **Proposal from Workstream 3.** Each item stays a WORKING ASSUMPTION until the owning workstream confirms it. |
+| Date | 2026-11-01, updated after PR #30 (first version 2026-10-22) |
+| Code described | `ai-agent/` on team `main` at `052336f` (PRs #1 to #14 and #23 to #30 merged) |
+| Status | **Proposal from Workstream 3, partly confirmed.** WS2's protected MCP server (PR #29) implements the tool names, arguments, structured error codes and per-student authorization in §3 to §5, tested offline with synthetic data and a synthetic signed token. Items not confirmed by that server stay WORKING ASSUMPTIONS until the owning workstream confirms them. |
 | Related | `docs/workstream3-integration-test-checklist.md` (how to test it), `docs/workstream3-completion-summary.md` (status), `docs/mock-data-model.md` (WS1 data model) |
 
 This document is for Workstreams 1, 2 and 4. It states what the agent sends,
@@ -75,6 +75,15 @@ async with Client(streamable_http_client(mcp_url, http_client=http), read_timeou
 `access_token`, `mcp_url`, `student_id` and `term_id` come from WS4's
 server code (§5), never from the chat.
 
+**WS2's protected server (PR #29)** serves Streamable HTTP on
+`127.0.0.1:8002/mcp` (`python -m src.mcp_server.team_service` from the
+repository root) and checks the bearer token itself: no valid token gives
+HTTP 401 before any tool runs. The root test
+`tests/test_team_mcp_http_integration.py` runs the pattern above in process
+with a synthetic signed token (T1 to T3 for synthetic data). Without Entra
+configuration and an identity mapping it rejects every token; no live Entra
+login has been tested.
+
 **One connection per signed-in student.** `BannerTools` keeps the calls of
 concurrent requests apart (tested: `test_concurrent_students_on_one_mcp_session_never_see_each_other`),
 but a connection opened with one student's token must not serve another
@@ -87,7 +96,8 @@ student.
 Tool names are mapped in one place, `agent/banner_tools.py: TOOL_NAMES`.
 Renaming a tool is a one-line change there. **Argument names are fixed in
 the `BannerTools` methods**; if WS2 uses other names (for example
-`studentId`), those methods change too. All arguments are strings.
+`studentId`), those methods change too. All arguments are strings. WS2's
+protected server (PR #29) uses exactly the names and arguments below.
 
 | Agent key | MCP tool | Arguments sent | Returns | Level |
 |---|---|---|---|---|
@@ -111,8 +121,8 @@ When each tool is called:
 
 | Field | Type | Level | Notes |
 |---|---|---|---|
-| `student_id` | string | REQUIRED | |
-| `max_credit_hours` | integer | REQUIRED | Credit limit for the term |
+| `student_id` | string | REQUIRED | Must equal the requested student (§3.7) |
+| `max_credit_hours` | integer | REQUIRED | Credit limit for the term; whole, non-negative (§3.7) |
 | `active` | **JSON boolean** | REQUIRED | Must be `true` or `false`. Any other value (`"false"`, `"true"`, `0`, `1`, `null`) is a data error (§3.7). |
 | `program` | string | optional | |
 
@@ -133,7 +143,7 @@ type (§3.7), gives `BackendDataError`.
 | Field | Type | Level | Notes |
 |---|---|---|---|
 | `course_id` | string | REQUIRED | |
-| `credit_hours` | integer | REQUIRED | |
+| `credit_hours` | integer | REQUIRED | Whole, non-negative (§3.7) |
 | `prerequisites` | **JSON array** of non-empty course ID strings | optional (missing means none) | AND rule: all must be completed. Any other type is a data error (§3.7). |
 | `corequisites` | **JSON array** of non-empty course ID strings | optional (missing means none) | Satisfied if completed or in the same schedule. Any other type is a data error (§3.7). |
 | `title` | string | optional | |
@@ -153,8 +163,8 @@ done by the server.
 | `section_id` | string | REQUIRED | Mock format `SEC` + digits (§6) |
 | `course_id` | string | REQUIRED | |
 | `term_id` | string | REQUIRED | Must equal the requested term |
-| `capacity` | integer | REQUIRED | |
-| `enrolled_count` | integer | REQUIRED | Full when `enrolled_count >= capacity` |
+| `capacity` | integer | REQUIRED | Whole, non-negative (§3.7) |
+| `enrolled_count` | integer | REQUIRED | Whole, non-negative (§3.7). Full when `enrolled_count >= capacity` |
 | `meetings` | array of meetings | optional (default `[]`) | A section without meetings never has a time conflict |
 | `section_number`, `modality` | string | optional | |
 
@@ -162,8 +172,8 @@ Meeting:
 
 | Field | Type | Level | Notes |
 |---|---|---|---|
-| `days` | JSON array | REQUIRED | Values from `MON TUE WED THU FRI SAT SUN`, upper case. `"Mon"` or a single string fails. |
-| `start_time`, `end_time` | string | REQUIRED | 24-hour `"HH:MM"`; `"9:30 AM"` fails. `end_time` after `start_time`. |
+| `days` | JSON array | REQUIRED | Non-empty; values from `MON TUE WED THU FRI SAT SUN`, upper case. `"Mon"`, a single string or `[]` fails (§3.7). |
+| `start_time`, `end_time` | string | REQUIRED | 24-hour `"HH:MM"` with ASCII digits; `"9:30 AM"` fails (§3.7). `end_time` after `start_time`. |
 | `location` | string | optional | |
 
 Back-to-back meetings (one ends 10:45, the next starts 10:45) do not overlap.
@@ -177,15 +187,19 @@ Back-to-back meetings (one ends 10:45, the next starts 10:45) do not overlap.
 | No structured content | JSON in the text content |
 | Anything else (HTML, plain text) | `BackendDataError` |
 
-### 3.7 Strict field types (since PR #14)
+### 3.7 Strict field types (since PRs #14, #26 and #27)
 
-Two fields are read strictly, so that malformed data stops a request instead
-of changing its result.
+These fields are read strictly, so that malformed data stops a request
+instead of changing its result.
 
-| Field | Accepted | Rejected as a data error | When missing |
-|---|---|---|---|
-| `active` (§3.1) | `true`, `false` | Any other value, for example `"false"`, `"true"`, `0`, `1`, `null` | Data error (the field is required) |
-| `prerequisites`, `corequisites` (§3.3, §3.4) | A JSON array of non-empty strings, for example `["CIS376"]` or `[]` | A string (`"CIS376"`, `""`), `null`, an object, or an array with a number, `null`, an empty string or a nested array | No requirements |
+| Field | Accepted | Rejected as a data error | When missing | Since |
+|---|---|---|---|---|
+| `active` (§3.1) | `true`, `false` | Any other value, for example `"false"`, `"true"`, `0`, `1`, `null` | Data error (the field is required) | PR #14 |
+| `prerequisites`, `corequisites` (§3.3, §3.4) | A JSON array of non-empty strings, for example `["CIS376"]` or `[]` | A string (`"CIS376"`, `""`), `null`, an object, or an array with a number, `null`, an empty string or a nested array | No requirements | PR #14 |
+| `credit_hours`, `max_credit_hours`, `capacity`, `enrolled_count` (§3.1, §3.3, §3.5) | Whole, non-negative JSON numbers (`3`, and `3.0` read as 3) | `3.9`, `29.9`, negative numbers, NaN, infinity, strings (`"3"`), booleans | Data error (required) | PR #26 (data fixes F1, F2, F5) |
+| `meetings[].days` (§3.5) | A non-empty array of day codes | `[]`, a string, lower-case or unknown codes | Data error (required) | PR #26 (data fix F3) |
+| `meetings[].start_time`, `end_time` (§3.5) | `"HH:MM"`, 24-hour, two ASCII digits each | `"9:30 AM"`, `"9:5"`, `" 9:00"`, non-ASCII digits, trailing text | Data error (required) | PR #26 (data fix F4) |
+| `student_id` in a student record, history row or enrolment row | The requested student's ID | Any other student's ID | Student record: data error. History and enrolment rows without the field are accepted (WORKING ASSUMPTION; WS2 should send it on every student-scoped row) | PR #27 (audit F6) |
 
 What a rejection does:
 
@@ -208,9 +222,12 @@ What a rejection does:
   must be sent as an array. Otherwise every request that touches that
   record stops.
 
-Code: `scheduling/models.py` (`parse_bool`, `parse_course_ids`), used by
-`Student.from_dict`, `Course.from_dict` and `BannerTools.search_courses`.
-Tests: `tests/test_strict_record_fields.py`.
+Code: `scheduling/models.py` (`parse_bool`, `parse_course_ids`,
+`parse_count`, `parse_time`), used by `Student.from_dict`,
+`Course.from_dict`, `Section.from_dict` and `BannerTools.search_courses`;
+the `student_id` check is in `agent/banner_tools.py`.
+Tests: `tests/test_strict_record_fields.py`, `tests/test_strict_numeric_fields.py`,
+`tests/test_security_audit_fixes.py`.
 
 ---
 
@@ -256,6 +273,21 @@ Proposed codes and what the agent does with them today:
 Mapping another code to its own message is a small Workstream 3 change once
 WS2 publishes its list.
 
+**WS2's published codes (PR #29, `src/mcp_server/team_protected_server.py`)
+and how the agent maps them today (`agent/banner_tools.py`):**
+
+| WS2 `error_code` | When WS2 sends it | Agent code today | Gap |
+|---|---|---|---|
+| `NOT_FOUND` | WS1 has no such record | `not_found` | none |
+| `FORBIDDEN` | the authorization check failed (for example another student's record), before any backend call | `tool_error` | Refused correctly (C11), but with the generic message |
+| `INVALID_ARGUMENT` | an argument WS2's adapter rejects | `tool_error` | generic message |
+| `BACKEND_DATA` | WS1 returned a response WS2 cannot use | `tool_error` | not reported as `backend_data_error` |
+| `UNAVAILABLE` | WS1 unreachable or failing, or any unexpected server error | `tool_error` | not reported as `backend_unavailable` ("not reachable right now") |
+
+All five fail closed: no record is used and no option is built from the
+failed call. Mapping the last four to their own agent codes is a WS3 code
+change (G5), not part of this document update.
+
 ### 4.2 What the agent does with any backend failure
 
 - **Raw text is never passed on.** The server's text and exception details
@@ -292,7 +324,7 @@ WS2 publishes its list.
 | I1 | `student_id` is set by trusted server code from the validated Entra token, through a mapping to the Banner ID that the university controls. It is never taken from the chat text or from the model. | WS4 | The agent takes it only from `SchedulingAssistant(...)`. |
 | I2 | `term_id` (for example `2027SP`) is chosen by the application, not by the student or the model. The agent does not read `terms.json`. | WS4 / WS1 | Bound at construction, like `student_id` |
 | I3 | The model cannot choose whose data is read. | WS3 | Yes: no assistant tool takes an identity argument; any argument a tool does not declare is rejected, and identity-like names get a privacy message. |
-| I4 | The agent sends `student_id` as an argument to `get_student_record`, `get_course_history` and `get_student_enrollments`. **The MCP server must check it against the authenticated user of the connection and refuse a mismatch** (an error with `error_code`, for example `FORBIDDEN`). The agent's binding is a second layer, not the authorization. | WS2 + WS4 | No (server side) |
+| I4 | The agent sends `student_id` as an argument to `get_student_record`, `get_course_history` and `get_student_enrollments`. **The MCP server must check it against the authenticated user of the connection and refuse a mismatch** (an error with `error_code`, for example `FORBIDDEN`). The agent's binding is a second layer, not the authorization. | WS2 + WS4 | No (server side). **WS2's protected server enforces it (PR #29):** a mismatch returns `FORBIDDEN` before any backend call (root test, synthetic signed token). Not tested with a live Entra token. |
 | I5 | The user's token, or an on-behalf-of token for the MCP server, is attached to the MCP connection by WS4's server code (§2). | WS4 + WS2 | The agent never sees, logs or forwards a token to the model; `mcp_calls` holds only tool names, arguments and error codes. |
 | I6 | One `SchedulingAssistant` per signed-in student, per request or per session. One MCP connection per signed-in student (§2). | WS4 | Concurrent `run()` calls on one assistant are isolated (tested). |
 | I7 | Course and section data are not personal, but are read over the same authenticated connection. | WS2 | — |
@@ -310,7 +342,7 @@ JSON.
 |---|---|
 | `answer` | **The only text to show the student.** It is always present and always safe to show: on failures it is a fixed message. |
 | `answer_source` | See the next table. |
-| `stopped_reason` | `answered`, `max_steps` (fixed "couldn't finish" answer), `error` (fixed apology). |
+| `stopped_reason` | `answered`, `max_steps` (fixed "couldn't finish" answer), `error` (fixed apology), `input_too_long` (a message over 4000 characters gets a fixed answer and is not read; PR #27, audit F7). |
 | `clarification` | Non-empty when the answer is a question about an unclear required time or day limit; no schedule was built. |
 | `registration_notes` | Fixed sentences already included in the answer, about current registrations. |
 | `grounded` | `true` if every section ID in the returned answer comes from a planner option. |
@@ -324,7 +356,7 @@ JSON.
 |---|---|
 | `model` | The model's answer passed every check. |
 | `model+system_note` | The model's answer, with sentences added by the application (for example a problem with a section the student named, or registration notes). |
-| `system_fallback` | The model's answer failed a check twice or contained internal text. It was replaced by an answer built only from tool results (`blocked` says why). |
+| `system_fallback` | The model's answer failed a check twice or contained internal text. It was replaced by an answer built only from tool results (`blocked` says why). Checks include: claims of a registration or enrolment (audit F1), availability claims without every named course planned (audit F4), and section days, times or credit hours that differ from the planner result (audit F2). |
 | `system_clarification` | A fixed question about an unclear required limit. |
 | `system_error` | A fixed apology after a failure (§4.2). |
 
@@ -348,7 +380,7 @@ Requirements for WS4:
 | G2 | **Fixed in PR #14 (merged 2026-10-22).** `prerequisites` / `corequisites` given as a string were split into characters. Now only an array of non-empty strings is accepted, also in `search_courses` rows (§3.7). | Done (WS3). WS1/WS2 must still send arrays, or requests stop with a data error. |
 | G3 | A clarification answer only works when restated as a limit. Checked on 2026-10-22 with the deterministic reader: "I want CIS376. I can't do mornings. No classes before 10:00 AM." is resolved; the same request followed by "Earliest start: 10:00 AM." is asked about again. | WS4 + team decision (R2), then WS3 |
 | G4 | Mock ID formats are hard-coded: course `^[A-Z]{2,4}\d{3}$`, section `^SEC\d+$` (`agent/assistant.py`, `agent/evidence.py`, `agent/preference_language.py`, `evaluation/assertions.py`). Real CRNs need these changed. | WS1 gives the formats, then WS3 |
-| G5 | Only `NOT_FOUND` has its own handling; other codes are generic (§4.1). | WS2 publishes codes, then WS3 if needed |
+| G5 | Only `NOT_FOUND` has its own handling; other codes are generic (§4.1). WS2 published `FORBIDDEN`, `INVALID_ARGUMENT`, `BACKEND_DATA` and `UNAVAILABLE` in PR #29; the agent does not map them yet. | WS3 (unblocked) |
 | G6 | No partial schedules (R1), and options that conflict with current registrations are labelled, not removed. Both are open team decisions. | Team |
 
 ---
@@ -378,6 +410,7 @@ secret.
 | Model | `OllamaLLM(model=...)` | `qwen3:8b` |
 | MCP tool names | `agent/banner_tools.py: TOOL_NAMES` | names in §3 |
 | Mock data folder (fake server only) | `--data-dir`, else `UNA_DATA_DIR`, else `data/` | `data/` |
+| WS2 protected MCP server (PR #29) | `python -m src.mcp_server.team_service` from the repository root; Entra settings in WS2's configuration (`docs/workstream2-mcp-integration.md`) | `http://127.0.0.1:8002/mcp`; rejects every token until Entra and an identity mapping are configured |
 | Python | 3.12 or 3.13 | `ai-agent/requirements.txt` |
 
 ## 10. Changing this contract
@@ -385,5 +418,6 @@ secret.
 1. The owning workstream proposes the change (names, fields, codes, ID formats).
 2. Workstream 3 updates `TOOL_NAMES`, the `BannerTools` methods,
    `scheduling/models.py` or the ID patterns, and this document.
-3. Workstream 3 re-runs `python -m pytest -q` and the checklist in
+3. Workstream 3 re-runs `python -m pytest -q` in `ai-agent/`, the root
+   integration tests (`python -m pytest -q tests/`) and the checklist in
    `docs/workstream3-integration-test-checklist.md`.
