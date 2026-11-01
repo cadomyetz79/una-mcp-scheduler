@@ -26,6 +26,8 @@ sys.path.insert(
 )
 from agent.banner_tools import BannerTools
 from agent.planner import plan_schedules
+from agent.assistant import SchedulingAssistant
+from agent.llm import ScriptedLLM, call
 
 from src.mcp_server import team_security as security
 from src.mcp_server import team_backend_client as backend
@@ -281,8 +283,52 @@ def test_signed_identity_over_actual_mcp_http(monkeypatch):
                                 for option in plan.options
                             ] == [["SEC1001", "SEC2002"]]
 
+                            # Full TEAM conversational agent through
+                            # authenticated MCP and team Mock Banner.
+                            llm = ScriptedLLM([
+                                {
+                                    "tool_calls": [
+                                        call(
+                                            "plan_schedule",
+                                            course_ids=["CIS376", "CIS410"],
+                                        )
+                                    ]
+                                },
+                                {
+                                    "content": (
+                                        "Option 1: SEC1001 and SEC2002, "
+                                        "6 credit hours."
+                                    )
+                                },
+                            ])
+
+                            assistant = SchedulingAssistant(
+                                BannerTools(client),
+                                llm,
+                                own_id,
+                                "2027SP",
+                            )
+                            chat_result = await assistant.run(
+                                "Plan CIS376 and CIS410"
+                            )
+
+                            assert chat_result.stopped_reason == "answered"
+                            assert chat_result.grounded
+                            assert "SEC1001" in chat_result.answer
+                            assert "SEC2002" in chat_result.answer
+                            assert any(
+                                entry.tool == "plan_schedule"
+                                and entry.ok
+                                for entry in chat_result.trace
+                            )
+                            assert any(
+                                entry["tool"] == "get_student_record"
+                                for entry in chat_result.mcp_calls
+                            )
+
+
         assert backend_calls == [
-            "S10001", "S10001", "S10001",
+            "S10001", "S10001", "S10001", "S10001",
             "S10002", "S10002",
         ]
 
