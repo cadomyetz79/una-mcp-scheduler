@@ -86,7 +86,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from functools import lru_cache
 
 from .preference_language import _COURSE, PREFS, RELAX_CUES, _targets, expand_day_codes, fragments
 
@@ -337,6 +336,10 @@ class _Parsed:
 class _Extractor:
     def __init__(self, request: str):
         self.ranges: list[tuple] = []
+        # parse() results, kept only as long as this extractor (audit 2026-10-31, F8: an
+        # lru_cache on the method kept every extractor and its request text for the
+        # life of the process)
+        self._parsed: dict[str, _Parsed] = {}
         text = expand_day_codes((request or "").replace("’", "'"))  # "MWF", "Tu/Th" (preference_language)
         # "a.m."/"p.m." and "5.30pm" would be cut by the sentence splitter
         text = re.sub(r"\b([ap])\.m\.(?=\W|$)", r"\1m", text, flags=re.I)
@@ -354,8 +357,14 @@ class _Extractor:
         self.ranges.append((a, b, bool(approx)))
         return f" ⟦{len(self.ranges) - 1}⟧ "
 
-    @lru_cache(maxsize=None)  # noqa: B019 - one extractor per request
     def parse(self, fragment: str) -> _Parsed:
+        """The reading of one fragment; the same object for the same fragment
+        (callers copy it before changing it)."""
+        if fragment not in self._parsed:
+            self._parsed[fragment] = self._parse(fragment)
+        return self._parsed[fragment]
+
+    def _parse(self, fragment: str) -> _Parsed:
         p = _Parsed()
         text = _COURSE.sub(" ", fragment)
         days = _days_in(text)

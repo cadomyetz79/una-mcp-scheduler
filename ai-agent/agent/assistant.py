@@ -94,7 +94,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from scheduling.models import VALID_DAYS
+from scheduling.models import VALID_DAYS, parse_time
 
 from . import constraints, safe_answer
 from .banner_tools import BackendDataError, BackendError, BackendUnavailable, BannerTools
@@ -139,7 +139,6 @@ PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "system.md"
 SECTION_ID_PATTERN = re.compile(r"\bSEC\d+\b")
 COURSE_ID_FORMAT = re.compile(r"^[A-Z]{2,4}\d{3}$")
 SECTION_ID_FORMAT = re.compile(r"^SEC\d+$")
-_HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # Argument names that would select a person; rejected with the privacy message.
 _IDENTITY_ARG = re.compile(r"student|user|person|^id$|email|name", re.IGNORECASE)
 MAX_COURSES = 8
@@ -447,7 +446,9 @@ class SchedulingAssistant:
             raise ToolArgumentError(f"At most {MAX_COURSES} courses per request.")
         course_ids = self._course_ids(course_ids)
         for label, t in (("earliest_start", earliest_start), ("latest_end", latest_end)):
-            if t not in (None, "") and not (isinstance(t, str) and _HHMM.match(t)):
+            # the planner's own parser decides (audit 2026-10-31, F12): a looser check here let
+            # "10:00\n" through, and the planner then failed the whole request
+            if t not in (None, "") and not (isinstance(t, str) and _is_time(t)):
                 raise ToolArgumentError(f"{label} must be 24-hour 'HH:MM'.")
         if avoid_days not in (None, "") and not (isinstance(avoid_days, list)
                                                  and all(isinstance(d, str) for d in avoid_days)):
@@ -800,6 +801,14 @@ class SchedulingAssistant:
             security=security,
             llm_calls=list(run.llm_calls),
         )
+
+
+def _is_time(value: str) -> bool:
+    try:
+        parse_time(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _registration_summary(result: dict) -> dict:
