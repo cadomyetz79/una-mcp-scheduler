@@ -1,0 +1,65 @@
+name: MCP integration tests
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "app/**"
+      - "data/**"
+      - "tests/**"
+      - "ai-agent/**"
+      - "scripts/**"
+      - "docs/workstream2-mcp-integration.md"
+      - "requirements*.txt"
+      - ".github/workflows/mcp-integration-tests.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "app/**"
+      - "data/**"
+      - "tests/**"
+      - "ai-agent/**"
+      - "scripts/**"
+      - "docs/workstream2-mcp-integration.md"
+      - "requirements*.txt"
+      - ".github/workflows/mcp-integration-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: WS1 + WS2 + WS3 integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements-mcp-dev.txt
+            ai-agent/requirements.txt
+
+      - name: Install team dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -r requirements-mcp-dev.txt \
+            -r ai-agent/requirements.txt
+
+      - name: Syntax-check optional live Ollama demo
+        run: python -m py_compile scripts/live_team_mcp_chat.py
+
+      - name: Run Mock Banner and MCP tests
+        run: python -m pytest -q tests/
+
+      - name: Run team AI agent regression tests
+        working-directory: ai-agent
+        run: python -m pytest -q
