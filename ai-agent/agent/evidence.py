@@ -11,8 +11,9 @@ answer is backed by it. No model is involved.
    for which course IDs? Only when the request is about taking / planning /
    availability AND the course IDs are known without guessing: written in the
    request, or the single result of a successful search_courses call.
-   Requests naming another student are skipped (a refusal is the right
-   answer there).
+   Requests naming another student are marked other_student (audit
+   2026-10-29, F3): no nudge or system-run plan (a refusal is the right
+   answer there), but a missing plan is still reported.
 
 2. unsupported_claims(): sentences in the answer that claim availability or
    eligibility for a course (a course named only as a prerequisite or
@@ -22,6 +23,11 @@ answer is backed by it. No model is involved.
    been planned at all. A course named only by its title is recognised if a
    search_courses result in this conversation returned that title. The course catalog (search_courses) is NOT evidence
    that a course is offered this term or that this student may take it.
+   Audit 2026-10-29: a positive claim needs EVERY course its claiming clauses
+   name in an option, not just one of them (F4); and a sentence saying the
+   assistant registered, enrolled or reserved something, or that a registration
+   is confirmed, is always unsupported, since no tool does that (F1,
+   action_claim()).
 
 3. section_mentions(): section IDs in the answer are grounded if they come
    from a plan_schedule option. A section the student named themselves may
@@ -76,6 +82,26 @@ _CLAIM = re.compile(
     r"not able to (take|enroll|register))\b",
     re.IGNORECASE,
 )
+# The assistant has no tool that registers, enrolls or reserves anything (audit
+# 2026-10-29, F1), so a sentence saying it did ("I've enrolled you in SEC2002"),
+# that it can, or that a registration is confirmed is never backed by a tool
+# result. "You're registered for CIS376" is allowed when every course it names
+# is a current registration from the latest plan_schedule result.
+_ACTION_CLAIM = re.compile(
+    r"\bI(?:'ve|'ll| have| will| can| could| just)?\s+(?:now\s+|already\s+|successfully\s+|also\s+)?"
+    r"(?:enroll(?:ed)?|enrol(?:led)?|register(?:ed)?|sign(?:ed)?|add(?:ed)?|book(?:ed)?|reserve[d]?|"
+    r"place[d]?|put)\s+you\b"
+    r"|\byou(?:'re| are| have been|'ve been| were)\s+(?:now\s+|all\s+|officially\s+|successfully\s+)?"
+    r"(?:enroll?ed|registered|signed up)\b"
+    r"|\b(?:seat|spot|place)s?\b[^.!?]{0,40}?\b(?:is|are|has been|have been|was|were)\s+(?:now\s+)?"
+    r"(?:reserved|held|secured|saved|booked)\b"
+    r"|\b(?:registration|enrollment|enrolment)s?\b[^.!?]{0,30}?\b(?:is|are|has been|have been|was|were)\s+"
+    r"(?:now\s+)?(?:confirmed|complete|completed|successful|finali[sz]ed|submitted|processed)\b"
+    r"|\b(?:registration|enrollment|enrolment)\s+(?:confirmed|complete|completed|successful)\b",
+    re.IGNORECASE)
+# "Once you're registered, ..." describes a future step, not a completed one.
+_HYPOTHETICAL_BEFORE = re.compile(
+    r"\b(once|after|when|whenever|if|until|unless|before|so that|to get|to be)\b[^.!?]{0,40}$", re.IGNORECASE)
 _NEGATION = re.compile(r"\b(not|no|never|none|cannot|unable|without)\b|n't\b|n’t\b", re.IGNORECASE)
 # A sentence that rejects a section: negation, or words saying it cannot be used.
 _REJECTION = re.compile(
@@ -143,9 +169,22 @@ def planned_courses(trace: list) -> dict[str, dict]:
 
 
 def required_courses(request: str, trace: list, student_id: str) -> dict | None:
-    """Course IDs this request needs plan_schedule evidence for, or None."""
-    if any(s != student_id for s in STUDENT_ID.findall(request or "")):
-        return None
+    """Course IDs this request needs plan_schedule evidence for, or None.
+
+    A request that names another student still needs the evidence (audit
+    2026-10-29, F3: before, any other student ID turned the check off, so
+    "Can I take CIS450? My friend S99999 liked it." was answered unchecked).
+    It is marked other_student: the assistant then neither nudges the model
+    nor plans by itself, so a refusal is not turned into a plan, but an answer
+    without the evidence still gets the "could not check" note."""
+    other_student = any(s != student_id for s in STUDENT_ID.findall(request or ""))
+    need = _required_courses(request, trace)
+    if need and other_student:
+        need["other_student"] = True
+    return need
+
+
+def _required_courses(request: str, trace: list) -> dict | None:
     ids = course_ids(request)
     # Naming specific sections of a named course is a request to check them.
     if not _INTENT.search(request or "") and not (ids and SECTION_ID.search(request or "")):
@@ -216,11 +255,38 @@ def _prerequisite_mentions(sentence: str) -> set[str]:
     return found
 
 
+def _registered_courses(trace: list) -> set[str]:
+    """Courses the student is registered in this term, from the latest plan_schedule result."""
+    result = _latest_plan(trace) or {}
+    return ({s.get("course_id") for s in result.get("current_registrations") or []}
+            | {a.get("course_id") for a in result.get("already_registered") or []})
+
+
+def action_claim(sentence: str, registered: set[str]) -> bool:
+    """True if the sentence says a registration, enrollment or reservation was
+    (or can be) made by the assistant, or is confirmed (F1)."""
+    for m in _ACTION_CLAIM.finditer(sentence):
+        before = sentence[: m.start()]
+        if _NEG_BEFORE.search(before) or _HYPOTHETICAL_BEFORE.search(before):
+            continue
+        named = set(course_ids(sentence))
+        if m.group(0).lower().startswith("you") and named and named <= registered:
+            continue  # a current registration, stated as such
+        return True
+    return False
+
+
 def unsupported_claims(answer: str, trace: list) -> list[dict]:
     planned = planned_courses(trace)
     titles = _titles_from_trace(trace)
+    registered = _registered_courses(trace)
     claims = []
     for sentence in _sentences(answer):
+        if action_claim(sentence, registered):
+            claims.append({"sentence": sentence[:300], "course_ids": course_ids(sentence),
+                           "reason": "the assistant cannot register, enroll or reserve, so no tool result "
+                                     "shows that this happened"})
+            continue
         if not _CLAIM.search(sentence):
             continue
         ids = course_ids(sentence)
@@ -235,7 +301,13 @@ def unsupported_claims(answer: str, trace: list) -> list[dict]:
             backed = any(c in planned for c in ids)
             why = "negative availability/eligibility claim, but none of these courses was planned"
         else:
-            backed = any(planned.get(c, {}).get("in_option") for c in ids)
+            # Every course a claiming clause names must be in an option (F4): one
+            # planned course no longer backs "CIS410 and CIS450 are both available".
+            claiming = " ".join(c for c in _CLAUSE.split(sentence) if c and _CLAIM.search(c))
+            in_claim = set(course_ids(claiming)) | {cid for title, cid in titles.items()
+                                                     if title in claiming.lower()}
+            subjects = [c for c in ids if c in in_claim] or ids
+            backed = all(planned.get(c, {}).get("in_option") for c in subjects)
             why = "availability/eligibility claim, but no plan_schedule option contains these courses"
         if not backed:
             claims.append({"sentence": sentence[:300], "course_ids": ids, "reason": why})

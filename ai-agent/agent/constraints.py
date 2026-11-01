@@ -134,19 +134,25 @@ _BUSY = r"\b(?:work|working|job|shift|busy|practice|commute|appointment|unavaila
 # words that make a time range a busy interval, not the student's available window
 _RANGE_BUSY = re.compile(rf"{_NEG}|{_BUSY}|\b(?:except|besides|other than|apart from|excluding|lunch|break)\b", re.I)
 
+# Words between a cue ("no", "work") and the time it governs. Bounded (audit
+# 2026-10-29, F7): an unbounded ".*" made each rule scan to the end of the text
+# from every cue, so a long message took quadratic time. Fragments in the
+# datasets are under 200 characters, so the readings are unchanged.
+_GAP = r".{0,200}"
+
 # (role, rule) in priority order; each time in a fragment is used by the first rule that reaches it.
 _TIME_RULES: list[tuple[str, re.Pattern]] = [(role, re.compile(p, re.I)) for role, p in (
-    ("end", rf"{_BUSY}.*\b(?:start|begin)\w*\s+(?:at\s+|around\s+)?{_t()}"),          # my shift starts at 1pm
-    ("start", rf"{_BUSY}.*\b(?:end|finish|over|done)\w*\s+(?:at\s+|around\s+|by\s+)?{_t()}"),  # work ends at 10
+    ("end", rf"{_BUSY}{_GAP}\b(?:start|begin)\w*\s+(?:at\s+|around\s+)?{_t()}"),          # my shift starts at 1pm
+    ("start", rf"{_BUSY}{_GAP}\b(?:end|finish|over|done)\w*\s+(?:at\s+|around\s+|by\s+)?{_t()}"),  # work ends at 10
     ("start", rf"\bnot\s+(?:free|available|around|on campus|awake|up)\s+(?:until|till|before)\s+{_t()}"),
-    ("bad", rf"{_NEG}.*\b(?:until|till)\s+{_t()}"),                                # can't stay until 5
-    ("end", rf"{_NEG}.*\b(?:after|past|later than)\s+{_t()}"),                     # nothing after 5pm
-    ("start", rf"{_NEG}.*\b(?:before|earlier than)\s+{_t()}"),                     # no classes before 10
+    ("bad", rf"{_NEG}{_GAP}\b(?:until|till)\s+{_t()}"),                                # can't stay until 5
+    ("end", rf"{_NEG}{_GAP}\b(?:after|past|later than)\s+{_t()}"),                     # nothing after 5pm
+    ("start", rf"{_NEG}{_GAP}\b(?:before|earlier than)\s+{_t()}"),                     # no classes before 10
     ("end", rf"\b(?:done|finish\w*|out|free|leave|leaving|ends?|ending|over|home|gone)\s+(?:by|before|at)\s+{_t()}"),
     ("start", rf"\b(?:start|begin)\w*\s+(?:at\s+|after\s+|from\s+|around\s+|no earlier than\s+)?{_t()}"),
     ("end", rf"\b(?:no later than|by)\s+{_t()}"),
-    ("start", rf"{_BUSY}.*\b(?:before|until|till)\s+{_t()}"),                       # I work until noon
-    ("end", rf"{_BUSY}.*\b(?:after|from|at)\s+{_t()}"),                            # I work after 3pm
+    ("start", rf"{_BUSY}{_GAP}\b(?:before|until|till)\s+{_t()}"),                       # I work until noon
+    ("end", rf"{_BUSY}{_GAP}\b(?:after|from|at)\s+{_t()}"),                            # I work after 3pm
     ("end", rf"\b(?:until|till)\s+{_t()}"),                                        # I can stay until 4
     ("start", rf"\bafter\s+{_t()}"),                                               # classes after 10am
 )]
@@ -173,7 +179,7 @@ _DAY_NOT_OK = re.compile(r"\b(?:not|never|n't)\s+(?:\w+\s+)?(?:fine|okay|ok|alri
 _DAY_RELAX = re.compile(r"\b(?:fine|okay|ok|alright|all right|acceptable)\b", re.I)
 _DAY_AVOID = re.compile(
     rf"{_NEG}|\b(?:off|busy|work|working|job|shift|bad|problem|conflict|skip|except|impossible|unavailable|"
-    r"no way|off-limits)\b|\b(?:keep|want|need|leave|have)\b.*\b(?:free|clear|open)\b|\bfree days?\b", re.I)
+    rf"no way|off-limits)\b|\b(?:keep|want|need|leave|have)\b{_GAP}\b(?:free|clear|open)\b|\bfree days?\b", re.I)
 _DAY_ONLY = re.compile(r"\b(?:only|just|exclusively)\b", re.I)
 _DAY_OK = re.compile(r"\b(?:works?|good|available|can|could|free|prefer|like|love|want|best|better)\b", re.I)
 
@@ -270,9 +276,16 @@ def _norm_time(match: re.Match, n: str, role: str) -> tuple[str | None, str | No
     return (value, None) if ok else (None, None if ap or h >= 12 else written)
 
 
+# The qualifier patterns only look at the few characters next to a time, so
+# only that much is searched (audit 2026-10-29, F7): searching all the text
+# before every time made reading a long message quadratic (21 KB: 1 s per call).
+_QUALIFIER_WINDOW = 60
+
+
 def _qualified(text: str, span: tuple[int, int]) -> str:
     """'approximate' or 'alternatives' if the time at span is not one exact time."""
-    before, after = text[: span[0]], text[span[1]:]
+    before = text[max(0, span[0] - _QUALIFIER_WINDOW): span[0]]
+    after = text[span[1]: span[1] + _QUALIFIER_WINDOW]
     if _APPROX_BEFORE.search(before) or _APPROX_AFTER.search(after):
         return "approximate"
     if _ALT_AFTER.search(after) or _ALT_BEFORE.search(before):
@@ -336,7 +349,8 @@ class _Extractor:
 
     def _mark(self, m: re.Match) -> str:
         a, b = _norm_time(m, "1", "start"), _norm_time(m, "2", "end")
-        approx = _APPROX_BEFORE.search(m.string[: m.start()]) or _APPROX_AFTER.search(m.string[m.end():])
+        approx = (_APPROX_BEFORE.search(m.string[max(0, m.start() - _QUALIFIER_WINDOW): m.start()])
+                  or _APPROX_AFTER.search(m.string[m.end(): m.end() + _QUALIFIER_WINDOW]))
         self.ranges.append((a, b, bool(approx)))
         return f" ⟦{len(self.ranges) - 1}⟧ "
 

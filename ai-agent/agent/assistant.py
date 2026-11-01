@@ -78,6 +78,12 @@ Guardrails enforced in code, not in the prompt:
    is treated like an unsupported claim (revision, then fallback). The answer
    gets fixed notes listing the two groups, or saying registrations could not
    be checked.
+14. Security audit 2026-10-29 (F1, F3, F4, F7): an answer saying the assistant
+   registered, enrolled or reserved something, or that a registration is
+   confirmed, is unsupported (no tool does that); a request naming another
+   student still needs plan evidence, but is never planned by the system; a
+   positive claim needs every course it names in an option; a message longer
+   than MAX_REQUEST_CHARS gets a fixed answer before anything reads it.
 """
 
 from __future__ import annotations
@@ -252,7 +258,7 @@ class AssistantResult:
     answer: str
     grounded: bool
     ungrounded_section_ids: list[str]
-    stopped_reason: str  # "answered" | "max_steps" | "error"
+    stopped_reason: str  # "answered" | "max_steps" | "error" | "input_too_long"
     model_calls: int
     trace: list[TraceEntry] = field(default_factory=list)
     mcp_calls: list[dict] = field(default_factory=list)
@@ -304,6 +310,12 @@ FAILURE_ANSWER = ("Sorry, something went wrong on our side while checking your s
                   "answer right now. Please try again in a few minutes.")
 BACKEND_DOWN_ANSWER = ("The registration system isn't reachable right now, so I can't check your schedule. Please "
                        "try again in a few minutes.")
+# Longest student message that is read (audit 2026-10-29, F7). Reading the
+# time/day wording of a 200 KB message took about 96 s of CPU on the event
+# loop; every request in the datasets is under 200 characters.
+MAX_REQUEST_CHARS = 4000
+TOO_LONG_ANSWER = (f"Your message is too long for me to read (more than {MAX_REQUEST_CHARS} characters). Please send "
+                   "a shorter message with the courses you want and any times or days you want to avoid.")
 
 
 def error_kind(error: BaseException, phase: str) -> str:
@@ -555,6 +567,12 @@ class SchedulingAssistant:
         return {"role": "tool", "tool_name": name, "content": json.dumps(result)}
 
     async def run(self, request: str) -> AssistantResult:
+        if isinstance(request, str) and len(request) > MAX_REQUEST_CHARS:
+            # F7: rejected before any reading, model call or MCP call
+            return AssistantResult(
+                answer=TOO_LONG_ANSWER, grounded=True, ungrounded_section_ids=[], stopped_reason="input_too_long",
+                model_calls=0, answer_source="system_input_limit",
+                security={"input_limit": {"chars": len(request), "max_chars": MAX_REQUEST_CHARS}})
         with BannerTools.run_log() as calls, call_log() as model_calls:
             run = _Run(request=request, mcp_calls=calls, llm_calls=model_calls)
             try:
@@ -655,6 +673,8 @@ class SchedulingAssistant:
             if self.check_evidence:
                 need = required_courses(request, trace, self.student_id)
                 missing = missing_plan_evidence(need, trace)
+                if need and need.get("other_student"):
+                    recovery = 2  # F3: never plan for a request about another student; the note still applies
                 if missing and recovery == 0:
                     recovery = 1
                     recoveries.append({"type": "nudge", "missing_course_ids": missing, "step": step})

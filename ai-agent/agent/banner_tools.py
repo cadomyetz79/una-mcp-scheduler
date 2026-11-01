@@ -180,9 +180,26 @@ class BannerTools:
             raise BackendDataError(f"expected a list, got {type(raw).__name__}", tool=tool)
         return raw
 
+    @staticmethod
+    def _owned(tool: str, student_id: str, rows: list, required: bool = False) -> None:
+        """Records must belong to the signed-in student (audit 2026-10-29, F6).
+        Before, a server answering with another student's record, or with
+        history rows of several students, was used as this student's: other
+        students' completed courses satisfied prerequisites. A row with a
+        different student_id is a BackendDataError; with required=True a
+        missing student_id is one too. WORKING ASSUMPTION: history and
+        enrollment rows without a student_id are accepted (the fake server's
+        enrollment rows are section records); the contract with Workstream 2
+        should say that every student-scoped row carries it."""
+        for row in rows:
+            if isinstance(row, dict) and (required or "student_id" in row) and row.get("student_id") != student_id:
+                raise BackendDataError("record of a different student", tool=tool)
+
     async def student(self, student_id: str) -> Student:
         record = await self._call("student", student_id=student_id)
+        self._owned(TOOL_NAMES["student"], student_id, [record], required=True)
         history = self._rows(TOOL_NAMES["history"], await self._call("history", student_id=student_id))
+        self._owned(TOOL_NAMES["history"], student_id, history)
         return self._parse(TOOL_NAMES["student"], lambda r: Student.from_dict(r, history), record)
 
     async def course(self, course_id: str) -> Course:
@@ -212,6 +229,7 @@ class BannerTools:
         try:
             raw = self._rows(TOOL_NAMES["enrollments"],
                              await self._call("enrollments", student_id=student_id, term_id=term_id))
+            self._owned(TOOL_NAMES["enrollments"], student_id, raw)  # F6: another student's rows -> not checked
             return [self._parse(TOOL_NAMES["enrollments"], Section.from_dict, s) for s in raw]
         except BackendError:
             return None
