@@ -8,6 +8,8 @@ on:
       - "data/**"
       - "tests/**"
       - "ai-agent/**"
+      - "scripts/**"
+      - "docs/workstream2-mcp-integration.md"
       - "requirements*.txt"
       - ".github/workflows/mcp-integration-tests.yml"
   pull_request:
@@ -17,6 +19,8 @@ on:
       - "data/**"
       - "tests/**"
       - "ai-agent/**"
+      - "scripts/**"
+      - "docs/workstream2-mcp-integration.md"
       - "requirements*.txt"
       - ".github/workflows/mcp-integration-tests.yml"
   workflow_dispatch:
@@ -49,6 +53,9 @@ jobs:
           python -m pip install \
             -r requirements-mcp-dev.txt \
             -r ai-agent/requirements.txt
+
+      - name: Syntax-check optional live Ollama demo
+        run: python -m py_compile scripts/live_team_mcp_chat.py
 
       - name: Run Mock Banner and MCP tests
         run: python -m pytest -q tests/
