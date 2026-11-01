@@ -3,10 +3,10 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`), Workstream 3 (AI Agent & Scheduling Logic) |
-| Date | 2026-10-28, baseline `220e325` |
-| Code | `ai-agent/` at selected main baseline `220e325`; Pydantic candidate `24e3fe1` deferred |
-| PRs | #1, #2, #3, #5 to #14 (excluding #4), all merged (2026-10-17 to 2026-10-22) |
-| Status | **Implemented WS3 prototype; verified handoff remains incomplete.** WS1 endpoints exist in the selected baseline. Real WS2 MCP integration and WS4 identity/authorization remain unverified, as does current GPU/model evidence. Not production-ready. |
+| Date | 2026-11-01, `main` at `052336f` (updated from the 2026-10-28 `220e325` checkpoint) |
+| Code | `ai-agent/` on `main` at `052336f`; Pydantic candidate `24e3fe1` deferred |
+| PRs | WS3: #1, #2, #3, #5 to #14 (excluding #4), #23 to #28 and #30, all merged (2026-10-17 to 2026-11-01). WS2 protected MCP server: #29 (merged 2026-11-01). |
+| Status | **Implemented WS3 prototype; offline regression passed on 2026-11-01 (Step 5).** The agent runs against WS2's protected MCP server (PR #29) over Streamable HTTP with a synthetic signed token in offline tests. No live Microsoft Entra login, no real Banner data, and no live-model evaluation of the current code. The `heldout2` live evaluation (Step 6) is **DEFERRED** to the lab GPU and has not been run. Not production-ready. |
 
 Companion documents:
 
@@ -38,12 +38,53 @@ Companion documents:
 | Registration-fit labels, stricter reading of hard limits, data folder over stdio (R7), per-request model statistics (R9), publication privacy check | #12 | `tests/test_quality_pass.py`, `tests/test_prepublish_check.py` |
 | Integration contract | #13 | `docs/workstream3-integration-contract.md`, `docs/workstream3-integration-test-checklist.md` |
 | Strict field types: `active` only as a JSON boolean (G1); `prerequisites` / `corequisites` only as arrays of course IDs, also in search rows (G2); malformed values fail closed | #14 | `tests/test_strict_record_fields.py` (59 tests) |
+| Handoff and P1 verification evidence | #23 | this document, `docs/workstream3-handoff.md` |
+| H1: mandatory time and day limits also apply to sections the student names; day codes (`MWF`, `TR`, `Tu/Th`) are read as day names | #24 | `tests/test_mandatory_constraints.py` (44 tests) |
+| M1: course search shows the model at most 20 courses, sorted by ID, with `total_matches` and `truncated` | #25 | `tests/test_search_limit.py` (29 tests) |
+| Strict numeric and meeting data (data fixes F1 to F5): whole, non-negative counts; non-empty `days` arrays; ASCII 24-hour `HH:MM`; overflow is a data error | #26 | `tests/test_strict_numeric_fields.py` (158 tests) |
+| Security audit F1, F3, F4, F6, F7: registration claims are unsupported; the evidence check stays on when another student's ID appears; availability claims need every named course; records with another `student_id` are rejected; messages over 4000 characters get a fixed answer, and the constraint reader no longer takes quadratic time | #27 | `tests/test_security_audit_fixes.py` (33 tests) |
+| Security audit F12, F8: `plan_schedule` time arguments are checked with the planner's own parser; the constraint parse cache is per request | #28 | `tests/test_security_phase_b1.py` (17 tests) |
+| WS2 protected MCP server (WS2-owned): six read-only tools, bearer token check, per-student access check (`FORBIDDEN`), structured `error_code` | #29 | root `tests/` (53 tests), `docs/workstream2-mcp-integration.md` |
+| Security audit F2: meeting days, times and credit hours an answer gives for a planned section must match the `plan_schedule` result | #30 | `tests/test_section_details.py` (112 tests) |
+
+Two numbering schemes are in use. "Data fixes F1 to F5" (PR #26) are not the
+same findings as the WS3 security audit of 2026-10-29 ("audit F1 to F12",
+PRs #27, #28 and #30).
 
 ---
 
 ## 2. Test evidence
 
-**Completed P1 checkpoint (2026-10-28, selected baseline `220e325`).**
+Offline tests and live-model evaluation are reported separately. Offline
+tests use scripted model answers (`ScriptedLLM`) and synthetic data; they
+check code, not model quality. Live-model evaluation sends real requests to
+a model and is the only evidence of answer quality.
+
+### 2.1 Offline tests (no model)
+
+**Final regression, Step 5 (2026-11-01, `main` at `052336f`).** Python
+3.15.1, pytest 9.2.0, Windows 11. Details:
+`docs/evidence/2026-11-01-ws3-step5-regression.md`.
+
+| Suite | Command | Result |
+|---|---|---|
+| WS3 agent (`ai-agent/`) | `python -m pytest -q -rs -p no:cacheprovider` | **1036 passed, 1 skipped** (27.35 s). The skip is the opt-in live Ollama test (`RUN_OLLAMA_TESTS` unset). |
+| WS1 + WS2 root (`tests/`) | `python -m pytest -q -rs -p no:cacheprovider tests/` | **53 passed** (2.54 s) |
+| Live demo script | `py_compile scripts/live_team_mcp_chat.py` | compiles; not run |
+
+- The WS3 suite includes the dataset oracle replays (ideal answers through
+  the real checks, no model), among them the 37 `heldout2` oracles in
+  `tests/test_heldout2.py` (40 tests with its 3 shape tests). These are not
+  a `heldout2` evaluation.
+- The root test `tests/test_team_mcp_http_integration.py` runs the WS3
+  `BannerTools`, planner and `SchedulingAssistant` (scripted model) against
+  the protected MCP server over Streamable HTTP in process, with a
+  synthetic signed token: no token gives HTTP 401, another student's record
+  gives `FORBIDDEN` with no backend call, and the plan returns `SEC1001`.
+- Not covered by Step 5: Python 3.12/3.13 (the CI versions) and Linux. No CI
+  run pinned to `052336f` is recorded here.
+
+**Completed P1 checkpoint (2026-10-28, selected baseline `220e325`; historical).**
 
 - 643 passed, 1 skipped in 13.31s on Python 3.14.4, Linux WSL2 aarch64.
   The skip is the opt-in Ollama test; no live model calls occurred.
@@ -83,14 +124,25 @@ Companion documents:
 | Text-only error "auth token not found" from `get_student_record` | Reported to the model as "Student record not found." Hence contract §4.1 E2: every error must carry an `error_code`. |
 | `heldout2` integrity | `cases.json` and `data/` identical to the pre-registration commit `0b4030e` |
 
-**Live model runs (qwen3:8b via Ollama, CPU sandbox, temperature 0).** All
+### 2.2 Live-model evaluation
+
+**WS3 live runs (qwen3:8b via Ollama, CPU sandbox, temperature 0).** All
 were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 
 - First held-out set: **25/34 in both runs**, with 0 false or unsupported
   academic claims and 0 hard-limit violations. This is the only
   generalisation evidence so far.
 - Later live results are development results.
-- No live run on PRs #11, #12 and #14 is recorded in this evidence; P1 added no live run on `220e325`.
+- No WS3 live evaluation is recorded for PRs #11 to #30; neither P1 nor
+  Step 5 ran a model.
+- **`heldout2` (Step 6): DEFERRED** to the lab GPU. It has never been run
+  with a model (handoff §8).
+
+**WS2-reported exploratory demos (2026-10-31).** WS2 reports single local
+runs of `scripts/live_team_mcp_chat.py` with `qwen3:4b-instruct` and
+`una-scheduler:latest` through the protected MCP server
+(`docs/workstream2-mcp-integration.md`). They are WS2's observations, not a
+WS3 evaluation, and were not rerun for this summary.
 
 ---
 
@@ -117,7 +169,21 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
   non-array `prerequisites` / `corequisites` stops the request with a data
   error (contract §3.7). Before, `"false"` was read as active (G1) and a
   string was split into characters (G2). Data that breaks the contract now
-  makes the agent unavailable for that record, not wrong.
+  makes the agent unavailable for that record, not wrong. Since PR #26 the
+  same holds for non-integer or negative counts, empty or non-array meeting
+  `days`, and times that are not ASCII 24-hour `HH:MM`; since PR #27 for a
+  record that carries another student's `student_id`.
+- **Request and search limits.** A message over 4000 characters gets a
+  fixed answer and is not read (PR #27). The model sees at most 20 search
+  results per search (PR #25); the MCP server still returns every match.
+- **Section details in answers (PR #30).** Days, times and credit hours
+  given for a planned section are checked against the planner result.
+  Locations, seats and modality given in an answer are not checked.
+- **Error codes from WS2.** The protected server sends `FORBIDDEN`,
+  `NOT_FOUND`, `INVALID_ARGUMENT`, `BACKEND_DATA` and `UNAVAILABLE`. Only
+  `NOT_FOUND` has its own handling; the others become the generic
+  `tool_error`, so `UNAVAILABLE` is not reported as "not reachable" (contract
+  §4.1, G5).
 - **Latency.** 3 to 13 minutes per request on a 2-vCPU CPU sandbox; GPU
   latency is not measured.
 - **Evaluation.** Not blind: the rules and most cases were written by the
@@ -132,8 +198,9 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 - **Multi-turn attacks** are untested.
 - **Student data in diagnostics.** `trace` and `mcp_calls` contain student
   data and need a retention policy (contract §6 W2).
-- **Authorization** of MCP calls must be enforced by WS2; the agent's binding
-  is a second layer (contract §5 I4).
+- **Authorization** of MCP calls is enforced by WS2's protected server
+  (PR #29, tested with a synthetic signed token only); the agent's binding
+  is a second layer (contract §5 I4). No live Entra login has been tested.
 
 ---
 
@@ -141,7 +208,7 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 
 | Owner | Needed | Blocks |
 |---|---|---|
-| WS2 | MCP server with the five tools (contract §3), passing JSON types through unchanged (§3.7); `error_code` on every error (§4.1); optional `get_student_enrollments`; per-call authorization against the token (§5 I4); transport and auth method | Any end-to-end test |
+| WS2 | **Delivered for synthetic data in PR #29:** the five tools plus `get_student_enrollments`, structured `error_code` on errors, per-student authorization (`FORBIDDEN`), Streamable HTTP with a bearer token. Still open: the full checklist §1 run against the protected server (C7, C8, S2, S4 to S7), real Entra configuration, and data from real Banner | Real-user end-to-end test |
 | WS1 | Confirm WS2 mapping/filtering (see handoff §7), real ID formats, and the data questions in handoff §7. Endpoints for students, courses, sections, history, enrollments and terms exist in `app/main.py` at `220e325`, and the mock data already uses a JSON boolean `active` and array requirements; real Banner data must keep both (§3.7 — since PR #14 anything else stops the request) | WS2's server |
 | WS4 | `student_id` from the validated Entra token (§5 I1); token on the MCP connection (§5 I5); display rules and connection-failure handling (§6 W1, W5); long-request handling (W3); logging and retention (W2); conversation state (W4) | Any real-user use |
 | Team | Remove or only flag options that conflict with current registrations; partial schedules; conversation history; blind test set and human review | R1, R2, evaluation strength |
@@ -154,7 +221,7 @@ were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 
 | # | Item | Kind | Notes |
 |---|---|---|---|
-| 1 | Run `heldout2` once on the lab GPU and publish the report | Evaluation (no code) | Handoff §8. Choose the code first. PR #9's `d4eacbf` (428 tests) is the pre-registered, clean run. Selected baseline `220e325` (643 tests in P1) is an alternative only after an explicit evaluation-code decision; the disclosure in audit §3.4 then applies. |
+| 1 | **Step 6, DEFERRED:** run `heldout2` once on the lab GPU and publish the report | Evaluation (no code) | Not run. Handoff §8. Choose the code first. PR #9's `d4eacbf` (428 tests) is the pre-registered, clean run. Current `main` (`052336f`, 1036 tests in Step 5) is an alternative only after an explicit evaluation-code decision; the disclosure in audit §3.4 then applies. |
 | 2 | Measure latency on the GPU | Measurement (no code) | Needed for contract §6 W3 |
 | 3 | Strict parsing of `active` (JSON boolean) and of `prerequisites` / `corequisites` (arrays) in `scheduling/models.py`, with tests | Code fix (G1, G2): **done** | PR #14, merged 2026-10-22 (59 tests). G1 could fail open before; malformed values now fail closed. |
 
@@ -163,17 +230,18 @@ other side decides):
 
 | # | Item | Waiting for |
 |---|---|---|
-| 4 | Option in `dev/chat.py` and `evaluation/run_eval.py` to connect to WS2's server (URL, token from the environment), so the checklist §4 cases can be automated | WS2 transport and auth method |
-| 5 | Align `TOOL_NAMES`, argument names and the fake server's tool names | WS2 tool names |
+| 4 | Option in `dev/chat.py` and `evaluation/run_eval.py` to connect to WS2's server (URL, token from the environment), so the checklist §4 cases can be automated. WS2's `scripts/live_team_mcp_chat.py` covers a single manual request; the runner is still stdio only | Unblocked: WS2's transport (Streamable HTTP, bearer) is known since PR #29 |
+| 5 | Align `TOOL_NAMES`, argument names and the fake server's tool names | **Done:** the protected server's six tool names and arguments match `TOOL_NAMES` (PR #29 tests) |
 | 6 | Change the ID patterns (G4) | WS1 ID formats |
-| 7 | Map more error codes to their own messages, if needed (G5) | WS2 error code list |
+| 7 | Map `UNAVAILABLE`, `BACKEND_DATA`, `FORBIDDEN` and `INVALID_ARGUMENT` to their own agent codes and messages (G5) | Unblocked: WS2 published the list in PR #29; WS3 code change |
 | 8 | Accept clarification answers in a follow-up turn (R2, G3) | WS4 / team decision on conversation state |
 | 9 | Remove or keep conflicting options; partial schedules (R1) | Team decision |
 
-Item 3 was fixed in
-PR #14; items 4 to 9 depend on integration contracts or team decisions.
-Items 1 and 2 remain evaluation work. Real authenticated integration and
-current model evidence remain open before claiming a complete verified handoff.
+Item 3 was fixed in PR #14 and item 5 is resolved by PR #29. Items 4 and 7
+are small WS3 changes that are now unblocked; items 6, 8 and 9 depend on
+other workstreams or team decisions. Items 1 and 2 remain evaluation work for
+the lab. A live Entra login, real data and current model evidence remain
+open before claiming a complete verified handoff.
 
 ---
 
@@ -182,7 +250,8 @@ current model evidence remain open before claiming a complete verified handoff.
 - **Start here.** Teams integrating with Workstream 3 should start from the
   contract and run the checklist's probe against their server first.
 - **Changes to the agent.** Agent-side changes go through Workstream 3 and
-  are re-checked with `python -m pytest -q` (expect 643 passed, 1 skipped on
-  `4dd16f1`) and checklist §0.
+  are re-checked with `python -m pytest -q` in `ai-agent/` (expect 1036
+  passed, 1 skipped on `052336f`), `python -m pytest -q tests/` from the
+  repository root (expect 53 passed) and checklist §0.
 - **Publication rules.** Contributors follow `CLAUDE.md` and run
   `python ai-agent/dev/prepublish_check.py` before pushing or posting.

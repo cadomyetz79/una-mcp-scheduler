@@ -3,9 +3,10 @@
 | Item | Value |
 |---|---|
 | Owner | Hassan Alnabres (`ehassan256417-afk`), Workstream 3 |
-| Date | 2026-10-22, updated after PR #14 |
+| Date | 2026-11-01, updated after PR #30 (first version 2026-10-22) |
 | Contract tested | `docs/workstream3-integration-contract.md` (section numbers below refer to it) |
-| Agent code | `ai-agent/` on team `main` at `4dd16f1` (PRs #1 to #12 and #14 merged) |
+| Agent code | `ai-agent/` on team `main` at `052336f` (PRs #1 to #14 and #23 to #30 merged) |
+| WS2 server | Protected MCP server, `src/mcp_server/` (PR #29) |
 
 How to use it:
 
@@ -22,12 +23,16 @@ Commands run from `ai-agent/` unless stated otherwise.
 
 ## 0. Baseline: Workstream 3 alone
 
-| ID | Check | How | Pass | Result on 2026-10-22 |
+All checks in this section are offline: no model is run (the assistant
+tests use a scripted model) and only synthetic data is used.
+
+| ID | Check | How | Pass | Latest result |
 |---|---|---|---|---|
-| B1 | Unit and dataset tests | `python -m pytest -q` (Python 3.12 or 3.13) | 643 passed, 1 skipped (the skip is the opt-in live model test) | PASS on 3.12 and 3.13 at `4dd16f1`; CI run 39804086408 on `main`: 4/4 jobs |
-| B2 | Planner over MCP (stdio, fake server) | `python dev/demo_plan.py S10001 2027SP CIS376 CIS410` | One option `SEC1001` + `SEC2002`, `fits_current_registration`, nothing excluded | PASS at `4dd16f1` (7 MCP calls) |
-| B3 | Probe over Streamable HTTP against the fake server | Appendix A, with the fake server on `127.0.0.1` | 13 PASS; C7, C8 and C11 FAIL, because the fake server has no error codes and no authorization | As expected |
-| B4 | Probe against malformed data | Appendix A, with a copy of `data/` where S10001 has `"active": "false"` and CIS410 has `"prerequisites": "CIS376"` | The probe runs to the end and names the problems before parsing: C2 raw (`str`), C3 raw rows (`CIS410: prerequisites`), C4/C5 (`CIS410 raw prerequisites`); the parsing checks and C10 fail with `backend_data_error`; 9 failures in total with C7, C8, C11 | As expected |
+| B1 | Unit and dataset tests | `python -m pytest -q` (Python 3.12 or 3.13) | 1036 passed, 1 skipped at `052336f` (the skip is the opt-in live model test) | PASS on 2026-11-01 at `052336f`, Python 3.15.1, Windows (Step 5). Earlier: 643 passed, 1 skipped on 3.12 and 3.13 at `4dd16f1`, CI run 39804086408: 4/4 jobs |
+| B2 | Planner over MCP (stdio, fake server) | `python dev/demo_plan.py S10001 2027SP CIS376 CIS410` | One option `SEC1001` + `SEC2002`, `fits_current_registration`, nothing excluded | PASS at `4dd16f1` (7 MCP calls); not rerun in Step 5 |
+| B3 | Probe over Streamable HTTP against the fake server | Appendix A, with the fake server on `127.0.0.1` | 13 PASS; C7, C8 and C11 FAIL, because the fake server has no error codes and no authorization | As expected at `4dd16f1`; not rerun in Step 5 |
+| B4 | Probe against malformed data | Appendix A, with a copy of `data/` where S10001 has `"active": "false"` and CIS410 has `"prerequisites": "CIS376"` | The probe runs to the end and names the problems before parsing: C2 raw (`str`), C3 raw rows (`CIS410: prerequisites`), C4/C5 (`CIS410 raw prerequisites`); the parsing checks and C10 fail with `backend_data_error`; 9 failures in total with C7, C8, C11 | As expected at `4dd16f1`; not rerun in Step 5 |
+| B5 | WS1 + WS2 root tests, including the agent against the protected MCP server | From the repository root: `python -m pytest -q tests/` | 53 passed | PASS on 2026-11-01 at `052336f`, Python 3.15.1, Windows (Step 5) |
 
 ---
 
@@ -36,29 +41,35 @@ Commands run from `ai-agent/` unless stated otherwise.
 Prerequisite: WS2's server serves the mock data (`data/*.json`, through WS1
 or directly), and a test token for `S10001` exists.
 
-Start with the probe in Appendix A, run as `S10001`:
+Start with the probe in Appendix A, run as `S10001`.
 
-| ID | Check | Pass criterion | Contract |
-|---|---|---|---|
-| C0 | Connect over Streamable HTTP with the token | No connection failure | §2 T1–T3 |
-| C1 | Tools listed | The five required tools; `get_student_enrollments` listed (optional) | §3 |
-| C2 | Student record and history | Raw `active` is a JSON boolean (checked before parsing); record and history parse | §3.1, §3.2, §3.7 |
-| C3 | Search with empty filters | Returns courses (`query=""`, `subject=""` mean no filter); raw rows have course ID arrays; rows parse | §3, §3.4, §3.7 |
-| C4/C5 | Every course and its sections for `2027SP` | Raw prerequisites/corequisites are arrays of non-empty strings (checked before parsing); all parse; every section has the requested term | §3.3, §3.5, §3.7 |
-| C6 | A course not offered this term | `[]`, not an error | §4.1 E4 |
-| C7 | Unknown student `S99999` | Tool error **with** `error_code: "NOT_FOUND"` | §4.1 E1, E2 |
-| C8 | Unknown course `ZZZ999` | Tool error **with** `error_code: "NOT_FOUND"` | §4.1 E1, E2 |
-| C9 | Current registrations of `S10001` | Listed (`['SEC1001']` on the mock data) | §3 |
-| C10 | Planner end to end | Same option as B2 | §1 |
-| C11 | `S10002`'s record over `S10001`'s connection | Refused (a tool error; `FORBIDDEN` or `NOT_FOUND`) | §5 I4 |
+Since PR #29, WS2's protected server exists and part of this section is
+covered by the root test `tests/test_team_mcp_http_integration.py` (B5),
+which runs in process over Streamable HTTP with a synthetic signed token and
+synthetic identity mapping. The Appendix A probe itself has **not** been run
+against the protected server yet.
+
+| ID | Check | Pass criterion | Contract | Automated coverage (B5, 2026-11-01) |
+|---|---|---|---|---|
+| C0 | Connect over Streamable HTTP with the token | No connection failure | §2 T1–T3 | Covered |
+| C1 | Tools listed | The five required tools; `get_student_enrollments` listed (optional) | §3 | Covered (all six names) |
+| C2 | Student record and history | Raw `active` is a JSON boolean (checked before parsing); record and history parse | §3.1, §3.2, §3.7 | Partly: the record parses with `active` true; the raw type check is not run |
+| C3 | Search with empty filters | Returns courses (`query=""`, `subject=""` mean no filter); raw rows have course ID arrays; rows parse | §3, §3.4, §3.7 | Not covered |
+| C4/C5 | Every course and its sections for `2027SP` | Raw prerequisites/corequisites are arrays of non-empty strings (checked before parsing); all parse; every section has the requested term | §3.3, §3.5, §3.7 | Partly: CIS410 and its two sections only |
+| C6 | A course not offered this term | `[]`, not an error | §4.1 E4 | Not covered |
+| C7 | Unknown student `S99999` | Tool error **with** `error_code: "NOT_FOUND"` | §4.1 E1, E2 | Not covered |
+| C8 | Unknown course `ZZZ999` | Tool error **with** `error_code: "NOT_FOUND"` | §4.1 E1, E2 | Not in B5; WS2's `test_missing_course_has_structured_error` gets `NOT_FOUND` calling the tool directly (not through the agent) |
+| C9 | Current registrations of `S10001` | Listed (`['SEC1001']` on the mock data) | §3 | Covered |
+| C10 | Planner end to end | Same option as B2 | §1 | Covered (plan and scripted assistant answer name `SEC1001`) |
+| C11 | `S10002`'s record over `S10001`'s connection | Refused (a tool error; `FORBIDDEN` or `NOT_FOUND`) | §5 I4 | Covered: `FORBIDDEN`, no backend call, both directions |
 
 Then these manual checks:
 
 | ID | Check | How | Pass |
 |---|---|---|---|
-| S1 | Tool names | If WS2's names differ, change `TOOL_NAMES` **and** the fake server's tool names on a WS3 branch; run B1 | B1 passes |
+| S1 | Tool names | If WS2's names differ, change `TOOL_NAMES` **and** the fake server's tool names on a WS3 branch; run B1 | B1 passes. **Resolved (PR #29):** the protected server uses the same six names and arguments; no change needed |
 | S2 | Error texts | Trigger C7, C8 and one server-side failure; read the texts in WS2's own logs or responses | No host names, SQL, stack traces or tokens (§4.1 E3) |
-| S3 | No token, wrong token, expired token | Run the probe with each | C0 fails, or every call is refused with an error code. The agent shows only fixed messages. |
+| S3 | No token, wrong token, expired token | Run the probe with each | C0 fails, or every call is refused with an error code. The agent shows only fixed messages. B5 covers "no token" (HTTP 401, no backend call). WS2's `tests/test_team_protected_mcp.py` checks that a token with a missing scope or an untrusted issuer gets `FORBIDDEN` (tool functions called directly). Wrong-signature and expired tokens are not covered by these tests |
 | S4 | Timeout | In a test build, delay one tool longer than `read_timeout_seconds` | `BackendUnavailable`; the assistant's answer is a fixed message; `security.backend_errors[].code` is `backend_unavailable` |
 | S5 | Server stopped | Stop the server, run the probe | `FAIL C0 connect to MCP_URL` with an exception type only; WS4 shows its fixed message (§6 W5) |
 | S6 | Two students at once | Two connections with two tokens, planner runs at the same time | Each gets only its own record and registrations |
@@ -130,6 +141,9 @@ For every case: no section ID outside planner options, no internal text, and
 Automating §4 with `evaluation/run_eval.py` needs a small Workstream 3 change
 at integration time: the runner and `dev/chat.py` start only the fake stdio
 server today, and need an option to connect to WS2's server URL with a token.
+WS2's `scripts/live_team_mcp_chat.py` (PR #29) runs one request at a time
+through the protected server with a live model; it is a manual demo, not
+this acceptance run. §4 needs a live model and has not been run.
 
 ---
 
@@ -138,7 +152,8 @@ server today, and need an option to connect to WS2's server URL with a token.
 | Area | Owner | Date | Commits (WS1 / WS2 / WS3 / WS4) | Result |
 |---|---|---|---|---|
 | §0 Baseline | WS3 | 2026-10-22 | — / — / `4dd16f1` / — | PASS (B3: the 3 expected failures; B4: the 9 expected failures) |
-| §1 WS2 | WS2 + WS3 | | | |
+| §0 Baseline (B1, B5) | WS3 | 2026-11-01 | `052336f` (single repository) | PASS: B1 1036 passed, 1 skipped; B5 53 passed (Step 5). B2 to B4 not rerun |
+| §1 WS2 | WS2 + WS3 | 2026-11-01 | `052336f` (single repository) | PARTIAL: C0, C1, C9, C10, C11 and S1 covered offline by B5 with a synthetic token (C2, C4/C5 and S3 in part; C8 only in WS2's direct tool test); Appendix A probe, C3, C6, C7, S2 and S4 to S7 not run |
 | §2 WS1 data | WS1 + WS3 | | | |
 | §3 WS4 | WS4 + WS3 | | | |
 | §4 End to end | Team | | | |

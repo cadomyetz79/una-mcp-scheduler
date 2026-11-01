@@ -489,3 +489,74 @@ every match to the agent (WS2). The number of matches is looked for anywhere
 in the answer, so the same number used for something else ("21 credit hours"
 when 21 courses matched) also skips the note. How the live model handles the
 new shape on E08–E12 has not been checked.
+
+### 2026-10-29 — Mandatory limits on named sections and day codes (H1, PR #24)
+
+**CONFIRMED (tests; no model was run)**
+- A section the student names that breaks a mandatory time or day limit is
+  a `REQUIRED_PREFERENCE_VIOLATION` issue, so it is never "valid together".
+- Day codes (`MWF`, `M/W`, `Tu/Th`, `TR`) are rewritten to day names
+  (`expand_day_codes()`) before the preference and constraint readers run.
+- Tests: `tests/test_mandatory_constraints.py` (44).
+
+### 2026-10-29 — Strict numeric and meeting data (data fixes F1 to F5, PR #26)
+
+**CONFIRMED (tests; no model was run)**
+- `credit_hours`, `capacity`, `enrolled_count` and `max_credit_hours` must
+  be whole, non-negative JSON numbers (`parse_count`; `3.0` is read as 3).
+  Before, `int()` read 3.9 credits as 3 and 29.9 enrolled as 29.
+- Meeting `days` must be a non-empty array of day codes; times only
+  24-hour `HH:MM` with ASCII digits; an overflow is a data error.
+- Tests: `tests/test_strict_numeric_fields.py` (158). The bundled and
+  evaluation datasets still load.
+
+These "data fixes F1 to F5" are not the security audit findings below.
+
+### 2026-10-31 — Security audit fixes F1, F3, F4, F6, F7 (PR #27)
+
+**CONFIRMED (tests; no model was run)**
+- F1: an answer saying something was registered, enrolled or reserved is an
+  unsupported claim (one revision, then the fallback answer).
+- F3: another student's ID in the request no longer turns the evidence check off.
+- F4: a positive availability claim needs every course it names in a
+  `plan_schedule` option.
+- F6: a student record, history row or enrolment row with another
+  `student_id` is a backend data error.
+- F7: messages over 4000 characters get a fixed answer
+  (`stopped_reason: "input_too_long"`); the constraint reader no longer
+  takes quadratic time. Readings of every dev, held-out and security
+  request are unchanged.
+- Tests: `tests/test_security_audit_fixes.py` (33).
+
+### 2026-10-31 — Security audit fixes F12, F8 (PR #28)
+
+**CONFIRMED (tests; no model was run)**
+- F12: `plan_schedule` checks `earliest_start` and `latest_end` with
+  `scheduling.models.parse_time`, so `"10:00\n"` or non-ASCII digits are an
+  argument error the model can correct, not a system error.
+- F8: the constraint parse cache lives on each extractor and is freed with
+  the request (it was process-wide).
+- Tests: `tests/test_security_phase_b1.py` (17).
+
+### 2026-11-01 — Security audit fix F2: section details (PR #30)
+
+**CONFIRMED (tests; no model was run)**
+- Meeting days, meeting times and credit hours an answer gives for a planned
+  section must be the ones in the `plan_schedule` result. A wrong detail gets
+  one revision, then the fallback answer.
+- Tests: `tests/test_section_details.py` (112).
+
+**LIMITS**: locations, seats and modality in an answer are not checked.
+
+### 2026-11-01 — Final offline regression (Step 5)
+
+**CONFIRMED (offline; no model was run, `heldout2` not evaluated)**
+- `main` at `052336f`, Python 3.15.1, Windows: 1036 passed, 1 skipped (the
+  opt-in live Ollama test) here; 53 passed in the repository root `tests/`,
+  which include this agent against WS2's protected MCP server (PR #29) with
+  a synthetic signed token. Record:
+  `docs/evidence/2026-11-01-ws3-step5-regression.md`.
+
+**LIMITS**: Python 3.12/3.13 and Linux not rerun; no WS3 live-model run
+since 2026-10-19; the `heldout2` live evaluation (Step 6) is deferred to the
+lab GPU.
