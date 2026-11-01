@@ -1,0 +1,6 @@
+# Team MCP runtime dependencies
+-r requirements.txt
+
+mcp[cli]==2.3.0
+PyJWT[crypto]==2.15.1
+httpx>=0.28,<1
