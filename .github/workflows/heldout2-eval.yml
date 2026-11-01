@@ -74,6 +74,12 @@ env:
   MODEL_TEMPLATE: sha256:ae370d884f108d16e7cc8fd5259ebc5773a0afa6e078b11f4ed7e39a27e0dfc4
   MODEL_PARAMS: sha256:cff3f395ef3756ab63e58b0ad1b32bb6f802905cae1472e6a12034e4246fbbdb
   MODEL_LICENSE: sha256:d18a5cc71b84bc4af394a31116bd3932b42241de70c77d2b76d69a314ec8aa12
+  # Registry manifest of qwen3:8b (sha256 of its 859 bytes) and its config blob.
+  # Ollama stores the manifest bytes as this blob and, at the legacy manifest
+  # path, adds one layer pointing to it (a downgrade anchor, see
+  # WriteLegacyAnchor in Ollama's manifest/manifest.go).
+  MODEL_MANIFEST: sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41
+  MODEL_CONFIG: sha256:05a61d37b08453e59290add468e3bb2f688e23a01e967fecb0e2fa41218cea76
   # Evaluation settings (heldout2 README run plan; handoff section 8.3). Not inputs.
   EVAL_ARGS: "--dataset heldout2 --model qwen3:8b --no-think --num-ctx 4096 --timeout 900 --num-predict 768"
   # Ollama server settings of the earlier runs (handoff section 8.2)
@@ -566,15 +572,55 @@ jobs:
           ollama pull "$MODEL" > "$META/ollama-pull.log" 2>&1 || { echo "::error::model pull failed (log in the artifact)"; exit 1; }
           manifest="$OLLAMA_MODELS/manifests/registry.ollama.ai/library/qwen3/8b"
           cp "$manifest" "$META/model-manifest.json"
+          cp "$OLLAMA_MODELS/blobs/${MODEL_MANIFEST/:/-}" "$META/registry-manifest.json"
           python3 - "$manifest" <<'EOF'
-          import json, os, sys
+          import hashlib, json, os, sys
+          from pathlib import Path
           e = os.environ
-          got = {l["mediaType"].rsplit(".", 1)[-1]: l["digest"] for l in json.load(open(sys.argv[1]))["layers"]}
-          want = {"model": e["MODEL_BLOB"], "template": e["MODEL_TEMPLATE"], "params": e["MODEL_PARAMS"],
-                  "license": e["MODEL_LICENSE"]}
-          print(f"manifest layers={json.dumps(got)}")
-          if got != want:
-              sys.exit("::error::model manifest layers differ from the pinned digests")
+          blobs = Path(e["OLLAMA_MODELS"]) / "blobs"
+          MANIFEST_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
+          pinned = [("application/vnd.ollama.image.model", e["MODEL_BLOB"]),
+                    ("application/vnd.ollama.image.template", e["MODEL_TEMPLATE"]),
+                    ("application/vnd.ollama.image.license", e["MODEL_LICENSE"]),
+                    ("application/vnd.ollama.image.params", e["MODEL_PARAMS"])]
+
+          def fail(msg):
+              sys.exit(f"::error::{msg}")
+
+          def pairs(layers):
+              return sorted((l.get("mediaType"), l.get("digest")) for l in layers)
+
+          # 1. The registry manifest, stored by Ollama as a blob named by its sha256.
+          raw = (blobs / e["MODEL_MANIFEST"].replace(":", "-")).read_bytes()
+          if "sha256:" + hashlib.sha256(raw).hexdigest() != e["MODEL_MANIFEST"]:
+              fail("stored registry manifest differs from the pinned digest")
+          reg = json.loads(raw)
+          if reg.get("mediaType") != MANIFEST_TYPE or reg.get("config", {}).get("digest") != e["MODEL_CONFIG"]:
+              fail("registry manifest type or config digest differs from the pinned values")
+          if pairs(reg["layers"]) != sorted(pinned):
+              fail("registry manifest layers differ from the pinned digests")
+
+          # 2. The local manifest: the registry manifest plus exactly one anchor layer
+          #    that points to the registry manifest blob. Nothing else is accepted.
+          def triple(l):
+              # any other field (e.g. "from") must be empty, as for a plain pull
+              extra = {k: v for k, v in l.items() if k not in ("mediaType", "digest", "size") and v}
+              return (l.get("mediaType"), l.get("digest"), l.get("size"), json.dumps(extra, sort_keys=True))
+
+          local = json.load(open(sys.argv[1]))
+          anchor = {"mediaType": MANIFEST_TYPE, "digest": e["MODEL_MANIFEST"], "size": len(raw)}
+          print("local manifest layers:")
+          for l in local["layers"]:
+              print(f"  {l.get('mediaType')} {l.get('digest')} {l.get('size')}")
+          if (triple(local.get("config", {})) != triple(reg["config"])
+                  or [triple(l) for l in local["layers"]] != [triple(l) for l in reg["layers"] + [anchor]]):
+              fail("local manifest is not the pinned registry manifest plus its anchor layer")
+
+          # 3. The small layers' blobs (the model blob is checked below).
+          for media_type, digest in pinned[1:]:
+              if "sha256:" + hashlib.sha256((blobs / digest.replace(":", "-")).read_bytes()).hexdigest() != digest:
+                  fail(f"{media_type} blob digest mismatch")
+          print("manifest ok: 4 pinned layers, config and registry manifest match; 1 anchor layer as expected")
           EOF
           blob="$OLLAMA_MODELS/blobs/${MODEL_BLOB/:/-}"
           actual="sha256:$(sha256sum "$blob" | cut -d' ' -f1)"
@@ -598,7 +644,7 @@ jobs:
           e = os.environ
           cpu = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "?")
           mem_kib = int(re.search(r"MemTotal:\s+(\d+)", open("/proc/meminfo").read()).group(1))
-          layers = json.load(open(f"{e['META']}/model-manifest.json"))["layers"]
+          local_manifest = json.load(open(f"{e['META']}/model-manifest.json"))
           env = {
               "recorded_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
               "mode": e["MODE"], "output": e["OUT_NAME"],
@@ -613,14 +659,18 @@ jobs:
               "mcp": next(l.split("==")[1].strip() for l in open(f"{e['META']}/pip-freeze.txt") if l.lower().startswith("mcp==")),
               "ollama_version": json.load(open(f"{e['META']}/ollama-version.json"))["version"],
               "ollama_asset_sha256": e["OLLAMA_SHA256"],
-              "model": e["MODEL"], "model_layers": {l["mediaType"].rsplit(".", 1)[-1]: l["digest"] for l in layers},
+              "model": e["MODEL"], "model_registry_manifest": e["MODEL_MANIFEST"],
+              "model_config": local_manifest["config"]["digest"],
+              # every layer of the local manifest as stored, the anchor layer included
+              "model_manifest_layers": [{k: l.get(k) for k in ("mediaType", "digest", "size")}
+                                        for l in local_manifest["layers"]],
               "eval_args": e["EVAL_ARGS"],
               "ollama_server": {k: e[k] for k in ("OLLAMA_CONTEXT_LENGTH", "OLLAMA_FLASH_ATTENTION", "OLLAMA_KV_CACHE_TYPE",
                                                   "OLLAMA_NUM_PARALLEL", "OLLAMA_MAX_LOADED_MODELS")},
           }
           json.dump(env, open(f"{e['META']}/environment.json", "w"), indent=2)
           print(json.dumps({k: env[k] for k in ("eval_commit", "runner_image", "cpu_model", "cpus", "ram_gib",
-                                                "python", "mcp", "ollama_version", "model_layers")}, indent=2))
+                                                "python", "mcp", "ollama_version", "model_registry_manifest")}, indent=2))
           EOF
 
       # Loads the model once with an empty prompt (no text is generated, no
@@ -667,7 +717,7 @@ jobs:
           old = json.loads((Path(e["RUNNER_TEMP"]) / "source" / "_meta" / "environment.json").read_bytes().decode("utf-8"))
           new = json.load(open(Path(e["META"]) / "environment.json"))
           same = ["eval_commit", "freeze_commit", "mcp", "ollama_version", "ollama_asset_sha256", "model",
-                  "model_layers", "eval_args", "ollama_server"]
+                  "model_registry_manifest", "model_config", "model_manifest_layers", "eval_args", "ollama_server"]
           diff = [k for k in same if old.get(k) != new.get(k)]
           if str(old.get("python", "")).rsplit(".", 1)[0] != new["python"].rsplit(".", 1)[0]:
               diff.append("python (minor version)")
