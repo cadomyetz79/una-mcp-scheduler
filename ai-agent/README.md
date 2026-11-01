@@ -466,3 +466,26 @@ Details: `docs/workstream3-integration-audit.md` §10.
 **LIMITS**: a wish next to a mandatory limit of the same kind does not rank
 options (one value per preference); clarification answers need conversation
 history (R2) to be useful in a real chat. Not integration-ready.
+
+### 2026-10-29 — Bounded course search (M1, branch `fix/ws3-m1-search-limit`)
+
+**CONFIRMED (tests; no model was run, `heldout2` not changed)**
+- `search_courses` used to return every match (the whole catalog for an empty
+  query), and the list was resent to the model on every later step. It now
+  shows at most `MAX_SEARCH_RESULTS` (20) courses, sorted by course ID, as
+  `{"courses", "total_matches", "truncated"}`.
+- When the latest search was cut, no successful `plan_schedule` came after it,
+  and the answer does not give the number of matches, the assistant adds a note
+  asking for a narrower topic or subject (`answer_source` `model+system_note`). The system prompt and the tool
+  description tell the model about the limit.
+- `agent/evidence.py` reads the new shape and the plain list of saved traces;
+  the "single search result" rule needs `total_matches == 1`.
+  `total_matches` is reworded if it appears in an answer.
+- Tests: `tests/test_search_limit.py` (29); 2 assertions in existing tests
+  follow the new shape (tool-data path `$.courses[0].title`).
+
+**LIMITS**: the limit applies in the agent only; the MCP server still sends
+every match to the agent (WS2). The number of matches is looked for anywhere
+in the answer, so the same number used for something else ("21 credit hours"
+when 21 courses matched) also skips the note. How the live model handles the
+new shape on E08–E12 has not been checked.
