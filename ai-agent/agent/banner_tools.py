@@ -171,7 +171,7 @@ class BannerTools:
         """Run a model constructor on server data; a wrong shape is a BackendDataError."""
         try:
             return fn(raw)
-        except (KeyError, ValueError, TypeError, AttributeError) as e:
+        except (KeyError, ValueError, TypeError, AttributeError, OverflowError) as e:
             raise BackendDataError(f"{type(e).__name__}: {e}", tool=tool) from None
 
     @staticmethod
