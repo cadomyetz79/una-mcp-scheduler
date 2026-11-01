@@ -30,6 +30,8 @@ Guardrails enforced in code, not in the prompt:
      matching plan_schedule result; catalog search alone is not enough.
    - A section the student named may be mentioned while rejecting it; any
      other section outside the plan options is ungrounded.
+   - Meeting days, times and credit hours given for a planned section must
+     match the plan_schedule result (F2, section_detail_claims()).
    Unsupported claims and ungrounded sections get one forced revision, then
    see 9.
 6. Preference strength check (agent/preference_language.py): when the
@@ -108,6 +110,7 @@ from .evidence import (
     requested_section_note,
     required_courses,
     search_limit_note,
+    section_detail_claims,
     section_mentions,
     truncated_search,
     unaddressed_requested_issues,
@@ -717,7 +720,7 @@ class SchedulingAssistant:
                 mentions = section_mentions(answer, trace, request)
                 ungrounded = mentions["ungrounded"]
                 rejected = mentions["rejected_mentions"]
-                claims = unsupported_claims(answer, trace)
+                claims = unsupported_claims(answer, trace) + section_detail_claims(answer, trace, request)
                 combos = combination_claims(answer, trace) + affirmed_request_claims(answer, request, trace)
                 reg_claims = registration_claims(answer, trace)
             else:

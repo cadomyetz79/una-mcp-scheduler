@@ -55,6 +55,32 @@ answer is backed by it. No model is involved.
    is looked for anywhere in the answer, so the same number used for something
    else ("21 credit hours" when 21 courses matched) also skips the note.
 
+7. section_detail_claims(): meeting times, meeting days and credit hours the
+   answer gives for a planned section must be the ones in the plan_schedule
+   result (audit 2026-10-29, F2: "SEC5201 runs 5:00 PM - 7:50 PM" passed
+   although the plan says WED 17:00-18:50). A time range must be a meeting of
+   the sections the sentence names (plus the planned and current sections of
+   a course it names without one of that course's sections), the student's
+   own time window, or, in a sentence about a conflict, a span inside a
+   meeting. A day list right before such a range, after "meets on" or after
+   "Days:" (not "Avoided days:") must be days of those meetings. A credit
+   number must be a course's credit hours, an option total, a credit limit or
+   a number from the request, or, with "left" / "remaining" / "currently
+   registered for" ... wording right around the number (not elsewhere in the
+   sentence), a difference of the plan's credit numbers; for a
+   course whose credit hours are unknown, only a number above every option
+   total containing it is wrong. A number stated for the only course the
+   sentence names ("CIS410 is 3 credits", "CIS410 (3 credits)", a "Credits:"
+   item under its line) must be that course's own credit hours when they are
+   known, unless that number is a total or worked out. A list item or later sentence without IDs
+   belongs to the IDs of the line above it, but is only checked when it reads
+   as a section detail ("Time:", "Days:", "meets", or it starts with a day or
+   a clock time). Wrong details are unsupported claims (one revision, then
+   the fallback answer).
+   Known limits: details swapped between two sections named in one sentence,
+   and day lists in preference sentences ("you wanted to avoid Fridays"), are
+   not checked; locations, seats and modality are not checked.
+
 Limits (WORKING ASSUMPTION): English keyword rules. A rejecting sentence is
 recognised by a negation word; a positive recommendation phrased with a
 negation ("SEC2001 isn't bad") would be treated as a rejection.
@@ -62,8 +88,11 @@ negation ("SEC2001 isn't bad") would be treated as a rejection.
 
 from __future__ import annotations
 
+import bisect
 import re
 from typing import Any
+
+from .preference_language import expand_day_codes
 
 COURSE_ID = re.compile(r"\b([A-Z]{2,4})\s?(\d{3})\b")
 SECTION_ID = re.compile(r"\bSEC\d+\b")
@@ -658,3 +687,323 @@ def has_preference_wording(request: str) -> bool:
     from .preference_language import classify
 
     return any(v["fragments"] for v in classify(request).values())
+
+
+# --- 7. section details (F2): meeting days, times and credit hours in the answer
+
+_DAY_CODE = {"mon": "MON", "tue": "TUE", "wed": "WED", "thu": "THU", "fri": "FRI", "sat": "SAT", "sun": "SUN"}
+_DAY_WORD = (r"(?:mon(?:days?)?|tue(?:s(?:days?)?)?|tuesdays?|wed(?:nesdays?)?|thu(?:r(?:s(?:days?)?)?)?|thursdays?|"
+             r"fri(?:days?)?|sat(?:urdays?)?|sun(?:days?)?)")
+_DAY_LIST = re.compile(rf"\b{_DAY_WORD}\b(?:\s*(?:,|/|&|\band\b)\s*(?:and\s+)?\b{_DAY_WORD}\b)*", re.IGNORECASE)
+_CLOCK = r"(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?\s*(?:m\b\.?)?"
+_RANGE = re.compile(rf"(?<![\w:]){_CLOCK}\s*(?:-|–|—|to|until)\s*{_CLOCK}(?![\w:])", re.IGNORECASE)
+# a day list that directly governs a range: "Monday and Wednesday, 9:30 AM - 10:45 AM",
+# "TUE/THU 09:30-10:45", "on Mon/Wed from 9:30 to 10:45"
+_BRIDGE = re.compile(r"^[\s,(*:]*(?:from\s+|at\s+|between\s+)?[\s*]*$", re.IGNORECASE)
+_MEETS = re.compile(r"\b(?:meets?|meeting|held)\s+(?:only\s+)?(?:on\s+|every\s+)?(?=\S)", re.IGNORECASE)
+_DAYS_LABEL = re.compile(r"\bdays?\**\s*:\**\s*", re.IGNORECASE)
+_CREDITS = re.compile(r"\b(\d{1,2})\s*(?:-\s*)?(?:credit(?:\s*hours?|s)?|cr\.?\s*hrs?|hours? of credit)\b"
+                      r"|\bcredit(?:\s*hours?|s)?\s*(?:[:=]|of|total(?:s|ing)?|is|are)?\s*\**\s*(\d{1,2})\b",
+                      re.IGNORECASE)
+_MERIDIEM = re.compile(r"\b([ap])\.m\.", re.IGNORECASE)
+_DETAIL_CONFLICT = re.compile(r"\b(conflicts?|conflicting|overlaps?|overlapping|clash(es|ing)?)\b", re.IGNORECASE)
+_SUB_ITEM = re.compile(r"^[ \t]*(?:[-*•]|\d+[.)])\s")
+# a unit that only inherited its IDs is a section detail when it is labelled ("Time:", "Days:",
+# "meets") or starts with a day or a clock time ("- Monday, 9:30 AM", "  - 9:00 AM - 10:15 AM")
+_DETAIL_LABEL = re.compile(r"\b(?:times?|days?|schedule|credits?|credit\s+hours)\**\s*:|\b(?:meets?|held)\b",
+                           re.IGNORECASE)
+_DETAIL_START = re.compile(rf"^[\s>*•#-]*(?:\d+[.)]\s+)?\**\s*(?:{_DAY_WORD}\b|\d{{1,2}}(?::\d{{2}}|\s*[ap]m\b))",
+                           re.IGNORECASE)
+# wording right around a credit number that works it out from the plan's numbers: after it
+# ("12 credits left", "8 credit hours remaining", "12 credits of room") or before it
+# ("currently registered for 4 credit hours", "Remaining credit hours: 8"); a word elsewhere in
+# the sentence ("... and has seats available") does not count
+_ARITHMETIC_AFTER = re.compile(
+    r"\s*(?:left|remaining|remain|more|available|to\s+spare|of\s+room|under|below)\b", re.IGNORECASE)
+_ARITHMETIC_BEFORE = re.compile(
+    r"\b(?:currently|already|remaining|unused|room\s+for|up\s+to|registered\s+for|enrolled\s+in)\b[\w ]{0,24}$",
+    re.IGNORECASE)
+# a schedule total right around a credit number: "6 credit hours in total", "brings your total to 10"
+_TOTAL_AFTER = re.compile(r"\s*(?:in\s+)?(?:total|altogether|combined|together)\b", re.IGNORECASE)
+_TOTAL_BEFORE = re.compile(r"\b(?:total(?:s|ing)?|altogether|combined|together)\b[\w :*]{0,16}$", re.IGNORECASE)
+# the one course or section a credit number directly follows (see _credit_course)
+_CREDIT_OF = re.compile(
+    r"\b(SEC\d+|[A-Z]{2,4}\s?\d{3})\b\**(?:\s*\(\s*(?:SEC\d+|[A-Z]{2,4}\s?\d{3})\s*\))?\**"
+    r"(?:\s*\(\s*|\s*,\s*|\s*[-–—:]\s*|\s+(?:is|are|has|carries|is\s+worth|worth|counts\s+for)\s+(?:an?\s+)?)$")
+# "Avoided days: Friday" is a preference, not the section's days
+_PREFERENCE_BEFORE = re.compile(
+    r"\b(?:avoid(?:ed|ing)?|prefer(?:red|s)?|free|off|blocked|unavailable|requested|wanted)\s*\**\s*$", re.IGNORECASE)
+
+
+def _as_list(value: Any) -> list:
+    return value if isinstance(value, list) else []
+
+
+def _field(entry: Any, key: str):
+    return entry.get(key) if isinstance(entry, dict) else getattr(entry, key, None)
+
+
+def _ok_calls(trace: list, tool: str) -> list:
+    return [t for t in trace if _field(t, "tool") == tool and _field(t, "ok")]
+
+
+def _minutes(hour: str, minute: str | None, meridiem: str | None) -> set[int]:
+    """Minutes after midnight a clock time can mean: "9:30" is 09:30 or 21:30."""
+    h, m = int(hour), int(minute or 0)
+    if h > 24 or m > 59:
+        return set()
+    if meridiem:
+        if h > 12:
+            return set()
+        return {(h % 12 + (12 if meridiem.lower() == "p" else 0)) * 60 + m}
+    if h == 0 or h >= 13:
+        return {h * 60 + m}
+    return {h * 60 + m, (h % 12 + 12) * 60 + m if h != 12 else m}
+
+
+def _ranges(text: str, bare: bool = False):
+    """(match, start minutes, end minutes) of each time range. Without bare,
+    a range needs a colon or AM/PM ("3-4" is not a time)."""
+    for m in _RANGE.finditer(text):
+        h1, m1, a1, h2, m2, a2 = m.groups()
+        if not (m1 or a1 or m2 or a2 or bare):
+            continue
+        if not a1 and a2:
+            # "6:00-7:15 PM": the end's AM/PM also applies to the start, unless
+            # the range crosses noon ("11:00-12:15 PM")
+            a1 = a2 if int(h1) <= int(h2) and int(h2) != 12 else None
+        yield m, _minutes(h1, m1, a1), _minutes(h2, m2, a2)
+
+
+def _day_codes(text: str) -> set[str]:
+    return {_DAY_CODE[t.lower()[:3]] for t in re.findall(_DAY_WORD, text, re.IGNORECASE)}
+
+
+def _hhmm(value: Any) -> int | None:
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})", value) if isinstance(value, str) else None
+    return int(m.group(1)) * 60 + int(m.group(2)) if m else None
+
+
+def _plan_results(trace: list) -> list[dict]:
+    return [r for t in _ok_calls(trace, "plan_schedule") if isinstance(r := _field(t, "result"), dict)]
+
+
+def _plan_options(trace: list) -> list[dict]:
+    return [o for r in _plan_results(trace) for o in _as_list(r.get("options")) if isinstance(o, dict)]
+
+
+def _option_courses(option: dict) -> set[str]:
+    return {s["course_id"] for s in _as_list(option.get("sections"))
+            if isinstance(s, dict) and isinstance(s.get("course_id"), str) and s["course_id"]}
+
+
+def _described_sections(trace: list):
+    """(key, course_id, meetings) of every section a plan_schedule result
+    describes; meetings are (days, start, end) in minutes. Current
+    registrations come without a section ID (_hide_current_section_ids in
+    assistant.py), so they are keyed by course."""
+    for result in _plan_results(trace):
+        rows = [s for o in _as_list(result.get("options")) if isinstance(o, dict) for s in _as_list(o.get("sections"))]
+        rows += [dict(s, section_id=None) for s in _as_list(result.get("current_registrations")) if isinstance(s, dict)]
+        requested = result.get("requested_sections")
+        rows += _as_list(requested.get("sections")) if isinstance(requested, dict) else []
+        for s in rows:
+            if not isinstance(s, dict) or not isinstance(s.get("course_id"), str) or not s["course_id"]:
+                continue
+            if s.get("section_id") is not None and not isinstance(s["section_id"], str):
+                continue
+            meetings = []
+            for m in _as_list(s.get("meetings")):
+                if not isinstance(m, dict):
+                    continue
+                start, end = _hhmm(m.get("start")), _hhmm(m.get("end"))
+                days = [m["days"]] if isinstance(m.get("days"), str) else _as_list(m.get("days"))
+                if start is not None and end is not None:
+                    meetings.append(({str(d).upper()[:3] for d in days}, start, end))
+            yield s.get("section_id") or f"current {s['course_id']}", s["course_id"], meetings
+
+
+def _course_credits(trace: list) -> dict[str, int]:
+    """course_id -> credit hours, from search_courses rows and plan option
+    totals (a one-course option, or one where every other course is known)."""
+    known = {r["course_id"]: r["credit_hours"] for t in _ok_calls(trace, "search_courses")
+             for r in _search_rows(_field(t, "result"))[0]
+             if isinstance(r, dict) and isinstance(r.get("course_id"), str) and r["course_id"]
+             and isinstance(r.get("credit_hours"), int)}
+    options = [(o, _option_courses(o)) for o in _plan_options(trace) if isinstance(o.get("total_credit_hours"), int)]
+    changed = True
+    while changed:
+        changed = False
+        for o, cids in options:
+            unknown = cids - set(known)
+            if len(unknown) == 1:
+                course = next(iter(unknown))
+                value = o["total_credit_hours"] - sum(known[c] for c in cids if c != course)
+                if value > 0:  # contradictory data derives nothing
+                    known[course] = value
+                    changed = True
+    return known
+
+
+def _credit_values(trace: list, request: str, known: dict[str, int]) -> tuple[set[int], set[int]]:
+    """(credit-hour numbers the trace or the request backs, differences an
+    answer may work out from them: "12 credit hours left under your limit",
+    "you are registered for 3 credit hours"). The differences are accepted
+    only for a number with _ARITHMETIC_AFTER / _ARITHMETIC_BEFORE wording."""
+    values: set = set(known.values())
+    derived: set = set()
+    record_max = [r.get("max_credit_hours") for t in _ok_calls(trace, "get_my_record")
+                  if isinstance(r := _field(t, "result"), dict)]
+    values |= set(record_max)
+    for result in _plan_results(trace):
+        for o in _as_list(result.get("options")):
+            if not isinstance(o, dict):
+                continue
+            total = o.get("total_credit_hours")
+            values.add(total)
+            current = o.get("current_registration")
+            if isinstance(current, dict):
+                now, limit = current.get("credit_hours_with_current"), current.get("credit_limit")
+                values |= {now, limit}
+                for a, b in [(limit, now), (now, total), (limit, total)] + [(mx, now) for mx in record_max]:
+                    if isinstance(a, int) and isinstance(b, int) and a > b:
+                        derived.add(a - b)
+        requested = result.get("requested_sections")
+        if isinstance(requested, dict):
+            for issue in _as_list(requested.get("issues")) + _as_list(requested.get("registration_issues")):
+                message = str(issue.get("message", "")) if isinstance(issue, dict) else ""
+                values |= {int(n) for n in re.findall(r"\b(\d{1,2}) credit", message)}
+    values |= {int(n) for n in re.findall(r"\b(\d{1,2})\b", request or "")}
+    return {v for v in values if isinstance(v, int)}, derived
+
+
+def _credit_course(sentence: str, match: re.Match, has_own_ids: bool, section_course: dict[str, str]) -> str | None:
+    """The course a _CREDITS number is stated for: the course (or section)
+    right before it ("CIS410 is 3 credits", "CIS410 (3 credits)", "SEC2002
+    (CIS410, 3 credits)"), "" for a "Credits: 3" item under a section line, or
+    None when the number is not tied to one course."""
+    if match.group(2) is not None:  # "Credits: 3"
+        lead = sentence[:match.start()]
+        return "" if not has_own_ids and re.fullmatch(r"[\s>*•#-]*\**\s*", lead) else None
+    m = _CREDIT_OF.search(sentence, max(0, match.start() - 60), match.start())
+    if not m:
+        return None
+    cid = re.sub(r"\s", "", m.group(1))
+    return section_course.get(cid, cid)
+
+
+def _detail_units(answer: str):
+    """(sentence, inherited IDs): a list item without IDs of its own
+    ("   - Time: 9:30 AM - 10:45 AM") gets the IDs of the line it belongs to,
+    and later sentences of a line get the IDs the line named.
+    section_detail_claims() checks a unit that only inherited its IDs when it
+    reads as a section detail (_DETAIL_LABEL, _DETAIL_START)."""
+    text = _MERIDIEM.sub(lambda m: m.group(1) + "m", answer or "")
+    owner: list[str] = []
+    for line in text.split("\n"):
+        ids = SECTION_ID.findall(line) + course_ids(line)
+        if ids:
+            owner = ids
+        elif not _SUB_ITEM.match(line):
+            owner = []
+        for sentence in re.split(r"(?<=[.!?])\s+", line):
+            if sentence.strip():
+                yield sentence.strip(), owner
+
+
+def section_detail_claims(answer: str, trace: list, request: str = "") -> list[dict]:
+    meetings: dict[str, list] = {}
+    by_course: dict[str, list[str]] = {}
+    section_course: dict[str, str] = {}
+    for key, cid, mts in _described_sections(trace):
+        meetings[key] = mts
+        section_course[key] = cid
+        by_course.setdefault(cid, []).append(key)
+    if not meetings:
+        return []
+    known_credits = _course_credits(trace)
+    credits, derived_credits = _credit_values(trace, request, known_credits)
+    options = [(o.get("total_credit_hours"), _option_courses(o)) for o in _plan_options(trace)]
+    planned: set[str] = set()
+    # the student's own window ("fits your 10:00-17:00 window"): from the request or the plan arguments
+    windows = [(a, b) for _, a, b in _ranges(expand_day_codes(request or ""), bare=True)]
+    for t in _ok_calls(trace, "plan_schedule"):
+        args = _field(t, "arguments")
+        if isinstance(args, dict):
+            planned |= {str(c).upper() for c in _as_list(args.get("course_ids"))}
+            a, b = _hhmm(args.get("earliest_start")), _hhmm(args.get("latest_end"))
+            if a is not None and b is not None:
+                windows.append(({a}, {b}))
+    found = []
+    for raw, inherited in _detail_units(answer):
+        sentence = expand_day_codes(raw)
+        own = SECTION_ID.findall(sentence) + course_ids(sentence)
+        if not own and not (_DETAIL_LABEL.search(sentence) or _DETAIL_START.match(sentence)):
+            inherited = []  # "- Lunch is free from 12:00 PM - 1:00 PM" under a section line
+        # each ID once: a line repeating an ID must not multiply the meetings compared
+        ids = list(dict.fromkeys(own + inherited))
+        named = [s for s in ids if s in meetings]
+        # a course named without one of its sections: its planned and current sections
+        # ("SEC2001 conflicts with your CIS376 class, MON/WED 9:30-10:45"); a course whose
+        # section is named is that section only ("CIS410 (SEC2002)")
+        covered = {section_course[s] for s in named}
+        named = list(dict.fromkeys(named + [s for c in ids if c not in covered for s in by_course.get(c, [])]))
+        wrong = []
+        if named:
+            mts = [mt for s in named for mt in meetings[s]]
+            by_end = {d.end(): d for d in _DAY_LIST.finditer(sentence)}
+            list_ends = sorted(by_end)
+            conflict = bool(_DETAIL_CONFLICT.search(sentence))
+            for m, starts, ends in _ranges(sentence):
+                if any(starts & a and ends & b for a, b in windows):
+                    continue
+                hit = [d for d, a, b in mts if a in starts and b in ends]
+                if not hit and conflict:
+                    # "they overlap from 10:30 to 10:45": a span inside a meeting
+                    hit = [d for d, a, b in mts if any(a <= s < e <= b for s in starts for e in ends)]
+                if not hit:
+                    wrong.append(f"time {m.group(0).strip()}")
+                    continue
+                # the first day list ending at most 20 characters before the range
+                i = bisect.bisect_left(list_ends, m.start() - 20)
+                dl = by_end[list_ends[i]] if i < len(list_ends) and list_ends[i] <= m.start() else None
+                if (dl and _BRIDGE.match(sentence[dl.end():m.start()])
+                        and not _day_codes(dl.group(0)) <= set().union(*hit)):
+                    wrong.append(f"days {dl.group(0)} at {m.group(0).strip()}")
+            all_days = set().union(*(mt[0] for mt in mts))
+            labels = [c for c in _DAYS_LABEL.finditer(sentence)
+                      if not _PREFERENCE_BEFORE.search(sentence, max(0, c.start() - 40), c.start())]
+            for cue in list(_MEETS.finditer(sentence)) + labels:
+                d = _DAY_LIST.match(sentence, cue.end())
+                if d and not _day_codes(d.group(0)) <= all_days:
+                    wrong.append(f"days {d.group(0)}")
+        if credits and (named or set(ids) & planned or re.search(r"\btotal\b", sentence, re.IGNORECASE)):
+            courses = {c for c in ids if c in planned} | {section_course.get(s) for s in named} - {None}
+            # a course with unknown credit hours: only a number above every
+            # option total that contains it is wrong ("SEC2002 is 9 credit hours")
+            unknown = not courses <= set(known_credits)
+            ceiling = max((total for total, cids in options if isinstance(total, int) and courses & cids), default=0)
+            # one course named, with known credit hours: a number stated for that course must be
+            # its own credit hours ("CIS410 is 6 credits"), unless the number is a total or worked out
+            stated = {section_course.get(s) for s in named} | {c for c in ids if c in known_credits or c in planned
+                                                               or c in by_course}
+            stated.discard(None)
+            course = next(iter(stated)) if len(stated) == 1 else None
+            own_credits = known_credits.get(course) if course else None
+            for c in _CREDITS.finditer(sentence):
+                n = int(c.group(1) or c.group(2))
+                before = max(0, c.start() - 40)
+                arithmetic = bool(_ARITHMETIC_AFTER.match(sentence, c.end())
+                                  or _ARITHMETIC_BEFORE.search(sentence, before, c.start()))
+                total = bool(_TOTAL_AFTER.match(sentence, c.end()) or _TOTAL_BEFORE.search(sentence, before, c.start()))
+                backed = credits | derived_credits if arithmetic else credits
+                if n not in backed and (not unknown or (ceiling and n > ceiling)):
+                    wrong.append(f"{n} credit hours")
+                elif own_credits is not None and not arithmetic and not total and n != own_credits and _credit_course(
+                        sentence, c, bool(own), section_course) in ("", course):
+                    wrong.append(f"{n} credit hours for {course}")
+        if wrong:
+            found.append({"sentence": raw[:300], "section_ids": sorted(set(named)), "details": sorted(set(wrong)),
+                          "reason": "the meeting days, times or credit hours it gives for these sections are not "
+                                    "the ones in the plan_schedule result"})
+    return found
