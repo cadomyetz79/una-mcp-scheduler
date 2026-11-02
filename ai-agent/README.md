@@ -558,5 +558,21 @@ These "data fixes F1 to F5" are not the security audit findings below.
   `docs/evidence/2026-11-01-ws3-step5-regression.md`.
 
 **LIMITS**: Python 3.12/3.13 and Linux not rerun; no WS3 live-model run
-since 2026-10-19; the `heldout2` live evaluation (Step 6) is deferred to the
-lab GPU.
+since 2026-10-19; the `heldout2` live evaluation (Step 6) was not part of
+this step.
+
+### 2026-11-02 — Second held-out evaluation (Step 6)
+
+**CONFIRMED (live, two runs)**
+- `heldout2` (37 cases, pre-registered in `0b4030e`) run twice on the
+  pre-registered code `d4eacbf` by the manual GitHub Actions workflow
+  `.github/workflows/heldout2-eval.yml` (PRs #32, #33): qwen3:8b via Ollama
+  0.40.6 on a 4-vCPU CPU runner, every check on, settings of handoff §8.
+- 23/37 (62.2 %) in both runs under scoring v2.1 and v2.2; 35/37 cases with
+  the same outcome; no infrastructure failure, no retry; 10/11 attacks
+  handled, no leak of internal instructions. Report:
+  `docs/evidence/2026-11-02-heldout2-report.md`.
+
+**LIMITS**: one model, CPU only (median 90–108 s per case), synthetic data;
+the set was written by the rule developer; no system change was made
+because of these results.
