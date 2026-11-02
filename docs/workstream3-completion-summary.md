@@ -6,7 +6,7 @@
 | Date | 2026-11-01, `main` at `052336f` (updated from the 2026-10-28 `220e325` checkpoint) |
 | Code | `ai-agent/` on `main` at `052336f`; Pydantic candidate `24e3fe1` deferred |
 | PRs | WS3: #1, #2, #3, #5 to #14 (excluding #4), #23 to #28 and #30, all merged (2026-10-17 to 2026-11-01). WS2 protected MCP server: #29 (merged 2026-11-01). |
-| Status | **Implemented WS3 prototype; offline regression passed on 2026-11-01 (Step 5).** The agent runs against WS2's protected MCP server (PR #29) over Streamable HTTP with a synthetic signed token in offline tests. No live Microsoft Entra login, no real Banner data, and no live-model evaluation of the current code. The `heldout2` live evaluation (Step 6) is **DEFERRED** to the lab GPU and has not been run. Not production-ready. |
+| Status | **Implemented WS3 prototype; offline regression passed on 2026-11-01 (Step 5).** The agent runs against WS2's protected MCP server (PR #29) over Streamable HTTP with a synthetic signed token in offline tests. No live Microsoft Entra login, no real Banner data, and no live-model evaluation of the current code. The `heldout2` live evaluation (Step 6) of the pre-registered code `d4eacbf` is **done**: 23/37 in both runs (`docs/evidence/2026-11-02-heldout2-report.md`). Not production-ready. |
 
 Companion documents:
 
@@ -130,13 +130,17 @@ a model and is the only evidence of answer quality.
 were recorded on 2026-10-19, on code up to PR #9. Details are in handoff §4.
 
 - First held-out set: **25/34 in both runs**, with 0 false or unsupported
-  academic claims and 0 hard-limit violations. This is the only
-  generalisation evidence so far.
-- Later live results are development results.
-- No WS3 live evaluation is recorded for PRs #11 to #30; neither P1 nor
-  Step 5 ran a model.
-- **`heldout2` (Step 6): DEFERRED** to the lab GPU. It has never been run
-  with a model (handoff §8).
+  academic claims and 0 hard-limit violations (code before the security
+  hardening).
+- **Second held-out set `heldout2` (Step 6, 2026-11-01/02): 23/37 (62.2 %)
+  in both runs** under scoring v2.1 and v2.2, pre-registered code
+  `d4eacbf`, GitHub Actions CPU runner; 35/37 cases with the same outcome,
+  1 false claim per run, 0 unsupported claims, 0 hard-limit violations, 10/11
+  attacks handled, no leak of internal instructions, no infrastructure
+  failure (`docs/evidence/2026-11-02-heldout2-report.md`).
+- Other live results are development results.
+- No live evaluation is recorded for the code of PRs #11 to #30; neither P1
+  nor Step 5 ran a model.
 
 **WS2-reported exploratory demos (2026-10-31).** WS2 reports single local
 runs of `scripts/live_team_mcp_chat.py` with `qwen3:4b-instruct` and
@@ -221,7 +225,7 @@ WS3 evaluation, and were not rerun for this summary.
 
 | # | Item | Kind | Notes |
 |---|---|---|---|
-| 1 | **Step 6, DEFERRED:** run `heldout2` once on the lab GPU and publish the report | Evaluation (no code) | Not run. Handoff §8. Choose the code first. PR #9's `d4eacbf` (428 tests) is the pre-registered, clean run. Current `main` (`052336f`, 1036 tests in Step 5) is an alternative only after an explicit evaluation-code decision; the disclosure in audit §3.4 then applies. |
+| 1 | **Step 6: done** (2026-11-01/02): `heldout2` run twice and reported | Evaluation (no code) | Pre-registered code `d4eacbf`, GitHub Actions CPU runner (`.github/workflows/heldout2-eval.yml`); 23/37 in both runs. Report: `docs/evidence/2026-11-02-heldout2-report.md`. A run of current `main` would need an explicit evaluation-code decision (audit §3.4). |
 | 2 | Measure latency on the GPU | Measurement (no code) | Needed for contract §6 W3 |
 | 3 | Strict parsing of `active` (JSON boolean) and of `prerequisites` / `corequisites` (arrays) in `scheduling/models.py`, with tests | Code fix (G1, G2): **done** | PR #14, merged 2026-10-22 (59 tests). G1 could fail open before; malformed values now fail closed. |
 

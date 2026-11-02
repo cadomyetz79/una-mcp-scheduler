@@ -6,12 +6,12 @@
 | Date | 2026-11-01 (updated from 2026-10-28) |
 | Code | `ai-agent/` on `main` at `052336f` (the 2026-10-28 checkpoint was `220e325`) |
 | Baseline decision | Pydantic candidate `24e3fe1` deferred; not included |
-| Status | Implemented research prototype. Offline regression passed on 2026-11-01 (Step 5). `heldout2` live evaluation (Step 6) **DEFERRED** to the lab GPU, not run. Complete verified handoff remains open. See `docs/workstream3-completion-summary.md`. |
+| Status | Implemented research prototype. Offline regression passed on 2026-11-01 (Step 5). `heldout2` live evaluation (Step 6) **done** on 2026-11-01/02: 23/37 in both runs (GitHub Actions CPU runner, `docs/evidence/2026-11-02-heldout2-report.md`). Complete verified handoff remains open. See `docs/workstream3-completion-summary.md`. |
 | Integration fixes | PR #11 (defects D1 to D6, current registrations), PR #12 (quality pass) and PR #14 (strict field types) are merged; see `docs/workstream3-integration-audit.md`. Contract for WS1, WS2 and WS4: `docs/workstream3-integration-contract.md` |
 | Fixes since the checkpoint | PR #24 (H1), #25 (M1), #26 (data fixes F1 to F5), #27 (audit F1, F3, F4, F6, F7), #28 (audit F12, F8), #30 (audit F2); WS2 protected MCP server PR #29 |
 
-This document is for the team (Workstreams 1, 2 and 4) and for whoever runs
-the second held-out evaluation on the lab GPU. Everything below is backed by
+This document is for the team (Workstreams 1, 2 and 4) and for whoever
+repeats the second held-out evaluation. Everything below is backed by
 files in `ai-agent/` and `docs/evidence/`. It contains no system-prompt text
 and no credentials.
 
@@ -41,7 +41,7 @@ Evidence labels used here:
 | Strict numeric and meeting data (data fixes F1 to F5) | CONFIRMED, merged (PR #26) |
 | Security audit fixes F1, F3, F4, F6, F7, F12, F8, F2 | CONFIRMED, merged (PRs #27, #28, #30) |
 | Offline regression (Step 5, 2026-11-01, `052336f`) | CONFIRMED: WS3 1036 passed, 1 skipped; root 53 passed (§4) |
-| Second held-out set (`heldout2`, 37 cases) | Pre-registered, **not run**. Step 6 **DEFERRED** to the lab GPU |
+| Second held-out set (`heldout2`, 37 cases) | CONFIRMED (Step 6, 2026-11-01/02): 23/37 in both runs, scoring v2.1 and v2.2, code `d4eacbf`, GitHub Actions CPU runner (`docs/evidence/2026-11-02-heldout2-report.md`) |
 | Integration with the Mock Banner API (WS1) | CONFIRMED offline for synthetic data: WS2's server calls the team FastAPI app in process (PR #29). Real Banner data: OPEN |
 | Integration with the MCP server (WS2) | CONFIRMED offline (PR #29): the agent's `BannerTools`, planner and assistant (scripted model) run against WS2's protected server over Streamable HTTP with a synthetic signed token. Full checklist §1 run and live Entra: OPEN |
 | Entra identity (WS4) | OPEN: the student ID is passed in when the assistant is created |
@@ -190,12 +190,14 @@ Reports:
 - `docs/evidence/2026-10-19-heldout-report.md`
 - `docs/evidence/2026-10-19-security-report.md`
 
-The only results that count as generalisation evidence are the 25/34 of the
-first held-out set (PR #8). Everything after that is development data until
-`heldout2` is run.
+The results that count as generalisation evidence are the 25/34 of the
+first held-out set (PR #8, code before the security hardening) and the 23/37
+of the second held-out set `heldout2` (Step 6, pre-registered code
+`d4eacbf`, the same in two runs; `docs/evidence/2026-11-02-heldout2-report.md`).
+Other live results are development data.
 
-No WS3 live evaluation is recorded for PRs #11 to #30. The `heldout2` run
-(Step 6) is **DEFERRED** to the lab GPU (§8). WS2 reports single
+`heldout2` evaluates `d4eacbf` (PR #9); no live evaluation is recorded for
+the code of PRs #11 to #30. WS2 reports single
 exploratory local demos on 2026-10-31 (`qwen3:4b-instruct` and
 `una-scheduler:latest` through the protected MCP server,
 `docs/workstream2-mcp-integration.md`); those are WS2's observations, not a
@@ -406,18 +408,24 @@ The agent's tool contract (names change only in
 ---
 
 Section 8 preserves the evaluation procedure pinned to the pre-registered
-`d4eacbf` (428 tests). `heldout2` has never been run with a model.
+`d4eacbf` (428 tests).
 
-**Status on 2026-11-01: Step 6 (this run) is DEFERRED to the lab GPU.** The
-procedure below is unchanged. Current `main` (`052336f`) has 1036 offline
-tests and includes PRs #11 to #30; running `heldout2` on it instead of
-`d4eacbf` needs an explicit evaluation-code decision first, with the
-disclosure in `docs/workstream3-integration-audit.md` §3.4.
+**Status: Step 6 done (2026-11-01/02).** `heldout2` was run twice on
+`d4eacbf` with this procedure, automated by the manual GitHub Actions
+workflow `.github/workflows/heldout2-eval.yml` (PRs #32, #33) on a standard
+CPU runner instead of the lab machine: 23/37 in both runs, no infrastructure
+failure, no retry. Report and provenance (run IDs, configuration,
+checksums; the raw records are retained outside the repository):
+`docs/evidence/2026-11-02-heldout2-report.md`,
+`docs/evidence/2026-11-02-heldout2-provenance.md`. Running `heldout2` on current
+`main` instead of `d4eacbf` would need an explicit evaluation-code decision,
+with the disclosure in `docs/workstream3-integration-audit.md` §3.4.
 
-## 8. Running `heldout2` later (lab GPU)
+## 8. Running `heldout2` (procedure)
 
-`heldout2` (`ai-agent/evaluation/heldout2/`) was pre-registered in `0b4030e`
-and has **never been run with a model**. Read
+`heldout2` (`ai-agent/evaluation/heldout2/`) was pre-registered in `0b4030e`.
+Its first two runs are reported in
+`docs/evidence/2026-11-02-heldout2-report.md`. Read
 `ai-agent/evaluation/heldout2/README.md` first: run plan, the "known before
 running" facts, the touched case N31, and every change after freezing.
 
@@ -543,7 +551,7 @@ python evaluation/variability.py --dataset heldout2 \
 | # | Item | Owner | Blocks |
 |---|---|---|---|
 | 1 | Optional: record a CI run pinned to `052336f` (Python 3.12/3.13, Ubuntu and Windows); Step 5 ran on Python 3.15.1, Windows only | WS3 / CI | nothing |
-| 2 | **Step 6, DEFERRED:** run `heldout2` once on the lab GPU (§8) and publish the report | Hassan, lab machine | the generalisation claim for the hardened system |
+| 2 | **Step 6: done** (2026-11-01/02). `heldout2` run twice on `d4eacbf` (GitHub Actions CPU runner): 23/37 in both runs, report published (`docs/evidence/2026-11-02-heldout2-report.md`) | Hassan | nothing |
 | 3 | Measure latency on the GPU; CPU numbers are not representative | Hassan | usability claim |
 | 4 | Connect the agent to WS2's MCP server. **Done offline in PR #29** (names match, root tests pass). Remaining: run the full checklist §1 and Appendix A probe against the protected server; add a server URL/token option to `evaluation/run_eval.py`; map WS2's other error codes (G5) | WS2 + Hassan | real end-to-end evaluation |
 | 5 | Confirm mapping of existing WS1 endpoints and resolve the data questions in §7 | WS1 + WS2 | item 4 |
